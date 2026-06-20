@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { FilePlus2, LayoutList, Moon, Sun, LogOut } from "lucide-react";
 import { StoreProvider } from "./store";
-import { NovoOrcamento } from "./pages/NovoOrcamento";
+import { NovoOrcamento } from "./pages/novoorcamento";
 import { Controle } from "./pages/Controle";
 import { Login } from "./pages/Login";
 import { AuthProvider, useAuth } from "./auth";
@@ -85,7 +85,7 @@ function AppShell() {
               <NavButton
                 active={page === "novo"}
                 onClick={() => {
-                  setOrcamentoEdit(null); // Garante que a tela venha limpa ao clicar em "Novo Orçamento" no menu
+                  setOrcamentoEdit(null); // Garante que a tela venha limpa ao clicar em "Novo Orçamento"
                   setPage("novo");
                 }}
                 icon={<FilePlus2 size={17} />}

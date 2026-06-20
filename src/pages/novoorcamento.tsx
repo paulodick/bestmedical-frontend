@@ -181,7 +181,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
                 onBlur={(e) => buscarOrcamentoPorNumero(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
-                    e.preventDefault(); // Evita que o Enter envie formulários ou recarregue a página
+                    e.preventDefault();
                     buscarOrcamentoPorNumero(e.currentTarget.value);
                   }
                 }}
@@ -354,7 +354,8 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
                   o.numParcelas,
                   o.descontoPercent
                 );
-                setO({ ...o, itens: novosItens, parcelas: novosValores.parcelas });
+                // Correção aplicada aqui para garantir a tipagem correta
+                setO({ ...o, itens: novosItens, parcelas: novosValores as unknown as Parcela[] });
               }}
             />
           </Block>
@@ -400,7 +401,8 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
                       setO({
                         ...o,
                         descontoPercent: pct,
-                        parcelas: novosValores.parcelas,
+                        // Correção aplicada aqui
+                        parcelas: novosValores as unknown as Parcela[],
                       });
                     }}
                     rightIcon={<span className="text-slate-400">%</span>}
@@ -433,7 +435,8 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
                       setO({
                         ...o,
                         numParcelas: num,
-                        parcelas: novosValores.parcelas,
+                        // Correção aplicada aqui
+                        parcelas: novosValores as unknown as Parcela[],
                       });
                     }}
                   >
