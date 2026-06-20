@@ -10,11 +10,29 @@ const BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(
 // Indica se o front deve consumir a API real
 export const API_ENABLED = !!BASE;
 
-// Token JWT mantido em memória (sem localStorage por causa do sandbox/iframe).
-let token: string | null = null;
+// Token JWT persistido em localStorage para sobreviver a recarregamentos (F5).
+// Em ambientes sem localStorage (ex.: sandbox/iframe restrito), faz fallback
+// para memória, mantendo o app funcional.
+const TOKEN_KEY = "bestmedical_token";
+
+let token: string | null = (() => {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+})();
+
 export const setToken = (t: string | null) => {
   token = t;
+  try {
+    if (t) localStorage.setItem(TOKEN_KEY, t);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* localStorage indisponível: mantém apenas em memória */
+  }
 };
+
 export const getToken = () => token;
 
 async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -74,6 +92,11 @@ export const api = {
     req<any>(`/orcamentos/${id}/enviar`, { method: "POST" }),
   removerOrcamento: (id: string) =>
     req<void>(`/orcamentos/${id}`, { method: "DELETE" }),
+
+  // Buscar um orçamento pelo número exato (ORC-2026-0001).
+  // Lança erro (404) quando não existe.
+  buscarPorNumero: (numero: string) =>
+    req<any>(`/orcamentos/por-numero/${encodeURIComponent(numero.trim())}`),
 
   // CEP
   consultarCep: (cep: string) =>

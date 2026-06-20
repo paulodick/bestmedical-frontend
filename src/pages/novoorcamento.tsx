@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Save,
   Eye,
@@ -11,7 +11,7 @@ import {
   Printer,
   X
 } from "lucide-react";
-import { Block, Button, Field, Input, Select, Textarea } from "../components/ui";
+import { Block, Button, Input, Select, Textarea } from "../components/ui";
 import { ItensGrid } from "../components/ItensGrid";
 import { Parcelamento } from "../components/Parcelamento";
 import { Modal } from "../components/Modal";
@@ -32,8 +32,10 @@ import {
   totalBruto,
   totalFinal,
   valorDesconto,
-  redistribuirValores,
+  gerarParcelas,
 } from "../lib/calc";
+import { api, API_ENABLED } from "../lib/api";
+import type { ItemOrcamento } from "../types";
 
 export const TEXTO_FINAL_PADRAO =
   "Orçamento válido por 15 dias. Qualquer alteração no escopo do serviço poderá alterar os itens e/ou valores listados nesta proposta.";
@@ -71,6 +73,13 @@ function novoOrcamentoVazio(numero: string): Orcamento {
     itens: [],
     parcelas: [],
     textoFinal: TEXTO_FINAL_PADRAO,
+    // Controle / status
+    enviado: false,
+    aprovado: false,
+    realizado: false,
+    aguardandoPeca: false,
+    ordemServico: false,
+    pagamentoRealizado: false,
   };
 }
 
@@ -86,14 +95,32 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
     }
   }, [orcamentoParaEditar]);
 
-  // Função que busca o orçamento quando o utilizador digita o número no input
-  const buscarOrcamentoPorNumero = (numeroDigitado: string) => {
-    if (!numeroDigitado) return;
-    
-    const encontrado = orcamentos.find(
-      (orc) => orc.numero.toLowerCase() === numeroDigitado.toLowerCase()
-    );
+  // Busca o orçamento ao digitar o número (Enter ou ao sair do campo).
+  // Em modo real, consulta a API; em modo demo, procura na lista local.
+  // Evita disparar quando o número é o do próprio orçamento já aberto.
+  const buscarOrcamentoPorNumero = async (numeroDigitado: string) => {
+    const alvo = (numeroDigitado || "").trim();
+    if (!alvo) return;
+    if (alvo.toLowerCase() === (o.numero || "").toLowerCase() && o.empresa) {
+      // Já é o orçamento aberto e com dados carregados: nada a fazer.
+      return;
+    }
 
+    if (API_ENABLED) {
+      try {
+        const encontrado = await api.buscarPorNumero(alvo);
+        setO(encontrado as Orcamento);
+        mostrarToast("Orçamento carregado para edição", "sucesso");
+      } catch {
+        // 404 ou erro de rede: segue como novo orçamento, sem incomodar.
+      }
+      return;
+    }
+
+    // Modo demo (offline)
+    const encontrado = orcamentos.find(
+      (orc) => orc.numero.toLowerCase() === alvo.toLowerCase(),
+    );
     if (encontrado) {
       setO(encontrado);
       mostrarToast("Orçamento carregado para edição", "sucesso");
@@ -128,6 +155,17 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
       setEnviando(false);
       mostrarToast("E-mail enviado com sucesso!");
     }, 1500);
+  };
+
+  // Recalcula as parcelas de forma consistente a partir dos itens, desconto e
+  // número de parcelas, preservando datas/valores já informados quando possível.
+  const recalcParcelas = (
+    itens: ItemOrcamento[],
+    numParcelas: number,
+    descontoPercent: number,
+  ): Parcela[] => {
+    const total = totalFinal({ itens, descontoPercent });
+    return gerarParcelas(numParcelas, total, o.parcelas);
   };
 
   const handleBuscarCep = async () => {
@@ -349,13 +387,12 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
             <ItensGrid
               itens={o.itens}
               onChange={(novosItens) => {
-                const novosValores = redistribuirValores(
+                const parcelas = recalcParcelas(
                   novosItens,
                   o.numParcelas,
-                  o.descontoPercent
+                  o.descontoPercent,
                 );
-                // Correção aplicada aqui para garantir a tipagem correta
-                setO({ ...o, itens: novosItens, parcelas: novosValores as unknown as Parcela[] });
+                setO({ ...o, itens: novosItens, parcelas });
               }}
             />
           </Block>
@@ -384,7 +421,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm text-slate-500">
                 <span>Subtotal</span>
-                <span>{formatBRL(totalBruto(o.itens))}</span>
+                <span>{formatBRL(totalBruto(o))}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-500">Desconto</span>
@@ -397,13 +434,8 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
                     value={o.descontoPercent}
                     onChange={(e) => {
                       const pct = Number(e.target.value) || 0;
-                      const novosValores = redistribuirValores(o.itens, o.numParcelas, pct);
-                      setO({
-                        ...o,
-                        descontoPercent: pct,
-                        // Correção aplicada aqui
-                        parcelas: novosValores as unknown as Parcela[],
-                      });
+                      const parcelas = recalcParcelas(o.itens, o.numParcelas, pct);
+                      setO({ ...o, descontoPercent: pct, parcelas });
                     }}
                     rightIcon={<span className="text-slate-400">%</span>}
                   />
@@ -412,7 +444,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
               {o.descontoPercent > 0 && (
                 <div className="flex items-center justify-between text-xs text-emerald-600">
                   <span>Valor do desconto</span>
-                  <span>- {formatBRL(valorDesconto(o.itens, o.descontoPercent))}</span>
+                  <span>- {formatBRL(valorDesconto(o))}</span>
                 </div>
               )}
               <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 text-lg font-semibold text-slate-900">
@@ -423,37 +455,15 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
           </Block>
 
           <Block title="Condições de Pagamento">
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-medium text-slate-700">Parcelas</label>
-                <div className="flex-1">
-                  <Select
-                    value={o.numParcelas}
-                    onChange={(e) => {
-                      const num = Number(e.target.value) || 1;
-                      const novosValores = redistribuirValores(o.itens, num, o.descontoPercent);
-                      setO({
-                        ...o,
-                        numParcelas: num,
-                        // Correção aplicada aqui
-                        parcelas: novosValores as unknown as Parcela[],
-                      });
-                    }}
-                  >
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
-                      <option key={n} value={n}>
-                        {n}x {n === 1 ? "(À vista)" : ""}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              </div>
-              <Parcelamento
-                parcelas={o.parcelas}
-                onChange={(novasParcelas) => setO({ ...o, parcelas: novasParcelas })}
-                total={totalFinal(o)}
-              />
-            </div>
+            <Parcelamento
+              numParcelas={o.numParcelas}
+              parcelas={o.parcelas}
+              total={totalFinal(o)}
+              onChangeNum={(n) => setO({ ...o, numParcelas: n })}
+              onChangeParcelas={(novasParcelas) =>
+                setO({ ...o, parcelas: novasParcelas })
+              }
+            />
           </Block>
         </div>
       </div>

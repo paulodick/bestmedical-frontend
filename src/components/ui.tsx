@@ -30,21 +30,87 @@ export function Label({
 const baseField =
   "w-full rounded-md border border-border bg-surface px-3 py-2 text-[14px] text-text placeholder:text-text-faint transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:bg-surface-offset disabled:text-text-faint";
 
-export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={`${baseField} ${props.className ?? ""}`} />;
+// Props extras opcionais aceitas pelos campos: rótulo embutido, ícone à
+// esquerda e ícone/adorno à direita. Quando 'label' é passado, o campo já vem
+// embrulhado com o rótulo (mesma aparência do componente Field).
+type CampoExtra = {
+  label?: string;
+  required?: boolean;
+  icon?: ReactNode;
+  rightIcon?: ReactNode;
+};
+
+// Embrulha um controle com label (se houver) e ícones laterais.
+function comAdornos(
+  controle: ReactNode,
+  { label, required, icon, rightIcon }: CampoExtra,
+) {
+  const corpo =
+    icon || rightIcon ? (
+      <div className="relative">
+        {icon && (
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-faint">
+            {icon}
+          </span>
+        )}
+        {controle}
+        {rightIcon && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint">
+            {rightIcon}
+          </span>
+        )}
+      </div>
+    ) : (
+      controle
+    );
+
+  if (!label) return <>{corpo}</>;
+  return (
+    <div>
+      <Label required={required}>{label}</Label>
+      {corpo}
+    </div>
+  );
 }
 
-export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return (
+export function Input({
+  label,
+  required,
+  icon,
+  rightIcon,
+  ...props
+}: InputHTMLAttributes<HTMLInputElement> & CampoExtra) {
+  const controle = (
+    <input
+      {...props}
+      className={`${baseField} ${icon ? "pl-9" : ""} ${
+        rightIcon ? "pr-9" : ""
+      } ${props.className ?? ""}`}
+    />
+  );
+  return comAdornos(controle, { label, required, icon, rightIcon });
+}
+
+export function Textarea({
+  label,
+  required,
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement> & CampoExtra) {
+  const controle = (
     <textarea
       {...props}
       className={`${baseField} resize-y leading-relaxed ${props.className ?? ""}`}
     />
   );
+  return comAdornos(controle, { label, required });
 }
 
-export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
+export function Select({
+  label,
+  required,
+  ...props
+}: SelectHTMLAttributes<HTMLSelectElement> & CampoExtra) {
+  const controle = (
     <select
       {...props}
       className={`${baseField} cursor-pointer appearance-none bg-[length:18px] bg-[right_0.6rem_center] bg-no-repeat pr-9 ${props.className ?? ""}`}
@@ -54,6 +120,7 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
       }}
     />
   );
+  return comAdornos(controle, { label, required });
 }
 
 // ===== Campo completo (label + controle) =====
@@ -119,6 +186,7 @@ export function Block({
   accent,
   children,
   right,
+  icon,
 }: {
   title: string;
   step?: number;
@@ -126,6 +194,7 @@ export function Block({
   accent?: boolean;
   children: ReactNode;
   right?: ReactNode;
+  icon?: ReactNode;
 }) {
   return (
     <section
@@ -146,6 +215,11 @@ export function Block({
               {step}
             </span>
           )}
+          {icon != null && (
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center text-text-muted">
+              {icon}
+            </span>
+          )}
           <div>
             <h2 className="text-[15px] font-semibold text-text">{title}</h2>
             {description && (
@@ -161,21 +235,44 @@ export function Block({
 }
 
 // ===== Badge de status (sim/não) =====
-export function StatusPill({ on, label }: { on: boolean; label: string }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-        on
-          ? "bg-success-soft text-success"
-          : "bg-surface-offset text-text-faint"
-      }`}
-    >
+export function StatusPill({
+  on,
+  label,
+  onClick,
+  interactive,
+}: {
+  on: boolean;
+  label: string;
+  onClick?: () => void;
+  interactive?: boolean;
+}) {
+  const conteudo = (
+    <>
       <span
         className={`h-1.5 w-1.5 rounded-full ${
           on ? "bg-success" : "bg-text-faint"
         }`}
       />
       {label}
-    </span>
+    </>
   );
+
+  const classeBase = `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+    on ? "bg-success-soft text-success" : "bg-surface-offset text-text-faint"
+  }`;
+
+  // Quando interativo, renderiza como botão clicável para alternar o status
+  if (interactive || onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={`${classeBase} cursor-pointer transition hover:ring-1 hover:ring-primary/30`}
+      >
+        {conteudo}
+      </button>
+    );
+  }
+
+  return <span className={classeBase}>{conteudo}</span>;
 }

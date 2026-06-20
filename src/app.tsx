@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { FilePlus2, LayoutList, Moon, Sun, LogOut } from "lucide-react";
+import { FilePlus2, LayoutList, Moon, Sun, LogOut, Loader2 } from "lucide-react";
 import { StoreProvider } from "./store";
 import { NovoOrcamento } from "./pages/novoorcamento";
-import { Controle } from "./pages/Controle";
+import { Controle } from "./pages/controle";
 import { Login } from "./pages/Login";
 import { AuthProvider, useAuth } from "./auth";
 import { API_ENABLED } from "./lib/api";
@@ -143,7 +143,15 @@ function AppShell() {
 
 // Decide entre tela de login e aplicação
 function Gate() {
-  const { autenticado } = useAuth();
+  const { autenticado, carregando } = useAuth();
+  // Enquanto reidrata a sessão (valida token salvo), evita piscar o login.
+  if (carregando) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface text-text-muted">
+        <Loader2 size={22} className="animate-spin" />
+      </div>
+    );
+  }
   if (!autenticado) return <Login />;
   return <AppShell />;
 }
