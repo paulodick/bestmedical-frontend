@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root,
+[data-theme="light"] {
+  /* Surfaces — cool clinical slate */
+  --color-bg: #f1f5f9;
+  --color-surface: #ffffff;
+  --color-surface-2: #f8fafc;
+  --color-surface-offset: #f1f5f9;
+  --color-border: #e2e8f0;
+  --color-divider: #eef2f6;
+
+  /* Text */
+  --color-text: #0f172a;
+  --color-text-muted: #64748b;
+  --color-text-faint: #94a3b8;
+  --color-text-inverse: #ffffff;
+
+  /* Primary — medical teal */
+  --color-primary: #0d7d8a;
+  --color-primary-hover: #0a6772;
+  --color-primary-active: #08545d;
+  --color-primary-soft: #d7eef0;
+
+  /* Status */
+  --color-success: #15803d;
+  --color-success-soft: #dcfce7;
+  --color-warning: #b45309;
+  --color-warning-soft: #fef3c7;
+  --color-danger: #be123c;
+  --color-danger-soft: #ffe4e6;
+  --color-info: #1d4ed8;
+  --color-info-soft: #dbeafe;
+}
+
+[data-theme="dark"] {
+  --color-bg: #0b1220;
+  --color-surface: #131c2e;
+  --color-surface-2: #1a2438;
+  --color-surface-offset: #1a2438;
+  --color-border: #2a3850;
+  --color-divider: #1f2c42;
+  --color-text: #e2e8f0;
+  --color-text-muted: #94a3b8;
+  --color-text-faint: #64748b;
+  --color-text-inverse: #0b1220;
+  --color-primary: #2dd4bf;
+  --color-primary-hover: #5eead4;
+  --color-primary-active: #99f6e4;
+  --color-primary-soft: #134e4a;
+  --color-success: #4ade80;
+  --color-success-soft: #14331f;
+  --color-warning: #fbbf24;
+  --color-warning-soft: #3a2a0a;
+  --color-danger: #fb7185;
+  --color-danger-soft: #3a1620;
+  --color-info: #60a5fa;
+  --color-info-soft: #16284a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: "Switzer", "Inter", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background-color: var(--color-bg);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Custom scrollbar for the table area */
+.thin-scroll::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+.thin-scroll::-webkit-scrollbar-track {
+  background: var(--color-surface-offset);
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-text-faint);
+  border-radius: 999px;
+  border: 2px solid var(--color-surface-offset);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* ===== Impressão / PDF ===== */
+@media print {
+  body {
+    background: #fff;
+  }
+  /* Esconde tudo, exibe apenas a área de impressão */
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    inset: 0;
+    background: #fff !important;
+    padding: 0 !important;
+  }
+  @page {
+    margin: 1.5cm;
+    size: A4;
+  }
+}
