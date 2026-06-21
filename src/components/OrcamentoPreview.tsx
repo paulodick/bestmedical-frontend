@@ -56,7 +56,7 @@ export function OrcamentoPreview({ o }: { o: Orcamento }) {
       </div>
 
       {/* Cliente + Solicitante */}
-      <div className="mt-5 grid grid-cols-2 gap-6">
+      <div className="mt-5 grid grid-cols-2 gap-6 leading-relaxed">
         <div>
           <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
             Cliente
@@ -89,29 +89,52 @@ export function OrcamentoPreview({ o }: { o: Orcamento }) {
         </div>
       </div>
 
-      {/* Dados técnicos */}
-      <div className="mt-5 rounded-md bg-slate-50 p-4">
+      {/* Dados técnicos — cada campo em um cartão próprio, com o rótulo em
+          negrito acima e o valor preenchido abaixo, para facilitar a leitura. */}
+      <div className="mt-5">
         <div className="mb-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">
           Dados do Equipamento
         </div>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-slate-700">
+        <div className="grid grid-cols-2 gap-2">
           {o.modalidade && (
-            <div><span className="text-slate-400">Modalidade:</span> {o.modalidade}</div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
+                Modalidade
+              </div>
+              <div className="font-semibold text-slate-900">{o.modalidade}</div>
+            </div>
           )}
           {marcaExibida && (
-            <div><span className="text-slate-400">Marca:</span> {marcaExibida}</div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
+                Marca
+              </div>
+              <div className="font-semibold text-slate-900">{marcaExibida}</div>
+            </div>
           )}
           {o.modelo && (
-            <div><span className="text-slate-400">Modelo:</span> {o.modelo}</div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
+                Modelo
+              </div>
+              <div className="font-semibold text-slate-900">{o.modelo}</div>
+            </div>
           )}
           {o.numeroSerie && (
-            <div><span className="text-slate-400">Nº de série:</span> {o.numeroSerie}</div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
+                Nº de Série
+              </div>
+              <div className="font-semibold text-slate-900">{o.numeroSerie}</div>
+            </div>
           )}
         </div>
         {o.descricaoVisita && (
-          <div className="mt-2 text-slate-700">
-            <span className="text-slate-400">Descrição da visita técnica:</span>{" "}
-            {o.descricaoVisita}
+          <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
+              Descrição da Visita Técnica
+            </div>
+            <div className="text-slate-700">{o.descricaoVisita}</div>
           </div>
         )}
       </div>
@@ -220,7 +243,9 @@ export function OrcamentoPreview({ o }: { o: Orcamento }) {
               {o.observacoes}
             </div>
           )}
-          {o.textoFinal && <div>{o.textoFinal}</div>}
+          {o.textoFinal && (
+            <div className={o.observacoes ? "mt-3" : undefined}>{o.textoFinal}</div>
+          )}
         </div>
       )}
 

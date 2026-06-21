@@ -8,6 +8,7 @@ import {
   Loader2,
   Building2,
   User,
+  MapPin,
   Printer,
   X
 } from "lucide-react";
@@ -312,7 +313,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Coluna Principal (Formulário) */}
         <div className="space-y-6 lg:col-span-8">
-          <Block title="Dados Básicos" icon={<Building2 size={18} />}>
+          <Block title="Dados Básicos" step={1} icon={<Building2 size={18} />}>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
               <Input
                 label="Número"
@@ -356,8 +357,11 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
               onChange={(e) => setO({ ...o, empresa: e.target.value })}
               required
             />
+          </Block>
+
+          <Block title="Endereço" step={2} icon={<MapPin size={18} />}>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-              <div className="sm:col-span-2">
+              <div className="sm:col-span-3">
                 <Input
                   label="CEP"
                   value={o.cep}
@@ -366,14 +370,14 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
                   maxLength={9}
                 />
               </div>
-              <div className="sm:col-span-5">
+              <div className="sm:col-span-6">
                 <Input
                   label="Endereço"
                   value={o.endereco}
                   onChange={(e) => setO({ ...o, endereco: e.target.value })}
                 />
               </div>
-              <div className="sm:col-span-2">
+              <div className="sm:col-span-1">
                 <Input
                   label="Número"
                   value={o.enderecoNumero}
@@ -382,7 +386,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
                   }
                 />
               </div>
-              <div className="sm:col-span-3">
+              <div className="sm:col-span-2">
                 <Input
                   label="Complemento"
                   value={o.complemento}
@@ -429,7 +433,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
             </div>
           </Block>
 
-          <Block title="Contato" icon={<User size={18} />}>
+          <Block title="Solicitante" step={3} icon={<User size={18} />}>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Input
                 label="Solicitante"
@@ -456,7 +460,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
             </div>
           </Block>
 
-          <Block title="Equipamento e Serviço">
+          <Block title="Equipamento e Serviço" step={4}>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
               <Select
                 label="Modalidade"
@@ -508,7 +512,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
             />
           </Block>
 
-          <Block title="Itens e Serviços">
+          <Block title="Itens e Serviços" step={5}>
             <ItensGrid
               itens={o.itens}
               onChange={(novosItens) => {
@@ -522,7 +526,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
             />
           </Block>
 
-          <Block title="Finalização e Observações">
+          <Block title="Finalização e Observações" step={6}>
             <div className="space-y-4">
               <Textarea
                 label="Observações Internas (Não aparecem no PDF)"
@@ -544,12 +548,12 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
         <div className="space-y-6 lg:col-span-4">
           <Block title="Resumo Financeiro">
             <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm text-slate-500">
+              <div className="flex items-center justify-between text-sm text-text-muted">
                 <span>Subtotal</span>
                 <span>{formatBRL(totalBruto(o))}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500">Desconto</span>
+                <span className="text-text-muted">Desconto</span>
                 <div className="flex items-center gap-2">
                   <Input
                     type="number"
@@ -572,7 +576,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
                   <span>- {formatBRL(valorDesconto(o))}</span>
                 </div>
               )}
-              <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 text-lg font-semibold text-slate-900">
+              <div className="mt-4 flex items-center justify-between border-t border-divider pt-4 text-lg font-semibold text-text">
                 <span>Total</span>
                 <span>{formatBRL(totalFinal(o))}</span>
               </div>
