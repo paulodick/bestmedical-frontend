@@ -1,11 +1,21 @@
 // ===== Cliente HTTP da API real (Best Medical backend) =====
-// Se VITE_API_URL não estiver definida, o app continua em modo mock (offline),
-// preservando o comportamento de demonstração atual.
+// Resolução da URL da API:
+// 1) Usa VITE_API_URL se estiver definida (ex.: variável no painel do host).
+// 2) Em build de PRODUÇÃO sem a variável, usa a URL padrão da API no Render,
+//    garantindo que o site publicado já saia conectado à API real.
+// 3) Em desenvolvimento local (npm run dev) sem a variável, permanece em modo
+//    mock (offline), preservando o comportamento de demonstração.
+const API_PADRAO_PROD = "https://bestmedical-api.onrender.com/api/v1";
 
-const BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(
-  /\/$/,
-  "",
-);
+const urlConfigurada = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+const urlResolvida =
+  urlConfigurada && urlConfigurada.length > 0
+    ? urlConfigurada
+    : import.meta.env.PROD
+      ? API_PADRAO_PROD
+      : undefined;
+
+const BASE = urlResolvida?.replace(/\/$/, "");
 
 // Indica se o front deve consumir a API real
 export const API_ENABLED = !!BASE;
