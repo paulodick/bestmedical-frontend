@@ -66,6 +66,8 @@ export function OrcamentoPreview({ o }: { o: Orcamento }) {
           {(o.endereco || o.cidade) && (
             <div className="mt-1 text-slate-600">
               {o.endereco}
+              {o.enderecoNumero && `, ${o.enderecoNumero}`}
+              {o.complemento && ` - ${o.complemento}`}
               {o.bairro && `, ${o.bairro}`}
               <br />
               {[o.cidade, o.estado].filter(Boolean).join(" - ")}

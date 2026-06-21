@@ -24,7 +24,15 @@ function normalizar(o: OrcamentoSeed | Orcamento): Orcamento {
       : gerarParcelas(num, totalFinal(o), [
           { id: uid(), numero: 1, data: o.data, valor: 0 },
         ]);
-  return { ...(o as Orcamento), numParcelas: num, parcelas };
+  const base = o as Orcamento;
+  return {
+    ...base,
+    // defaults para campos novos que podem faltar em seeds/dados antigos
+    enderecoNumero: base.enderecoNumero ?? "",
+    complemento: base.complemento ?? "",
+    numParcelas: num,
+    parcelas,
+  };
 }
 
 // A interface pública do store é a MESMA — os componentes não mudam.

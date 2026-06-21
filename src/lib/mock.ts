@@ -93,8 +93,12 @@ export const proximoNumero = (existentes: Orcamento[]): string => {
 };
 
 // ===== Orçamentos fictícios (seed) =====
-// Seeds sem os campos de parcelamento — preenchidos em runtime pelo store.
-export type OrcamentoSeed = Omit<Orcamento, "numParcelas" | "parcelas">;
+// Seeds sem os campos de parcelamento e sem número/complemento de endereço
+// — todos preenchidos em runtime pelo store (normalizar()).
+export type OrcamentoSeed = Omit<
+  Orcamento,
+  "numParcelas" | "parcelas" | "enderecoNumero" | "complemento"
+>;
 
 export const SEED_ORCAMENTOS: OrcamentoSeed[] = [
   {

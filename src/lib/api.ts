@@ -98,6 +98,28 @@ export const api = {
   buscarPorNumero: (numero: string) =>
     req<any>(`/orcamentos/por-numero/${encodeURIComponent(numero.trim())}`),
 
+  // Autocompletar dados do cliente pelo CNPJ (empresa, endereço, número,
+  // complemento e último solicitante). Retorna null quando o CNPJ ainda
+  // não existe — nesse caso o front mantém os campos como estão.
+  buscarClientePorCnpj: (cnpj: string) =>
+    req<{
+      encontrado: boolean;
+      cnpj: string;
+      empresa: string;
+      cep: string;
+      endereco: string;
+      enderecoNumero: string;
+      complemento: string;
+      bairro: string;
+      cidade: string;
+      estado: string;
+      pais: string;
+      solicitante: string;
+      setor: string;
+      telefone: string;
+      email: string;
+    } | null>(`/clientes/por-cnpj?cnpj=${encodeURIComponent(cnpj.trim())}`),
+
   // CEP
   consultarCep: (cep: string) =>
     req<{ cep: string; endereco: string; bairro: string; cidade: string; estado: string }>(

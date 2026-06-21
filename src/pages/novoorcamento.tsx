@@ -53,6 +53,8 @@ function novoOrcamentoVazio(numero: string): Orcamento {
     empresa: "",
     cep: "",
     endereco: "",
+    enderecoNumero: "",
+    complemento: "",
     bairro: "",
     cidade: "",
     estado: "",
@@ -125,6 +127,68 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
       setO(encontrado);
       mostrarToast("Orçamento carregado para edição", "sucesso");
     }
+  };
+
+  // Autocompleta os dados da empresa/solicitante a partir do CNPJ digitado
+  // (Enter ou ao sair do campo), caso já exista cadastro/orçamento anterior
+  // para o mesmo CNPJ. Os campos preenchidos continuam editáveis.
+  // Não sobrescreve quando estamos editando um orçamento já carregado.
+  const buscarClientePorCnpj = async (cnpjDigitado: string) => {
+    // Só dispara com CNPJ completo (14 dígitos).
+    const digitos = (cnpjDigitado || "").replace(/\D/g, "");
+    if (digitos.length !== 14) return;
+
+    // Aplica os dados encontrados sem apagar o que já estiver preenchido
+    // pelo usuário (mantém valores atuais quando o cadastro vier vazio).
+    const aplicar = (d: {
+      empresa?: string;
+      cep?: string;
+      endereco?: string;
+      enderecoNumero?: string;
+      complemento?: string;
+      bairro?: string;
+      cidade?: string;
+      estado?: string;
+      pais?: string;
+      solicitante?: string;
+      setor?: string;
+      telefone?: string;
+      email?: string;
+    }) => {
+      setO((atual) => ({
+        ...atual,
+        empresa: atual.empresa || d.empresa || "",
+        cep: atual.cep || d.cep || "",
+        endereco: atual.endereco || d.endereco || "",
+        enderecoNumero: atual.enderecoNumero || d.enderecoNumero || "",
+        complemento: atual.complemento || d.complemento || "",
+        bairro: atual.bairro || d.bairro || "",
+        cidade: atual.cidade || d.cidade || "",
+        estado: atual.estado || d.estado || "",
+        pais: atual.pais || d.pais || "Brasil",
+        solicitante: atual.solicitante || d.solicitante || "",
+        setor: atual.setor || d.setor || "",
+        telefone: atual.telefone || d.telefone || "",
+        email: atual.email || d.email || "",
+      }));
+      mostrarToast("Dados da empresa preenchidos pelo CNPJ", "sucesso");
+    };
+
+    if (API_ENABLED) {
+      try {
+        const cliente = await api.buscarClientePorCnpj(cnpjDigitado);
+        if (cliente && cliente.encontrado) aplicar(cliente);
+      } catch {
+        // erro de rede/404: segue como cliente novo, sem incomodar.
+      }
+      return;
+    }
+
+    // Modo demo (offline): usa o orçamento mais recente com o mesmo CNPJ.
+    const mesmoCnpj = orcamentos
+      .filter((orc) => orc.cnpj.replace(/\D/g, "") === digitos)
+      .sort((a, b) => b.numero.localeCompare(a.numero));
+    if (mesmoCnpj.length > 0) aplicar(mesmoCnpj[0]);
   };
 
   const [showPreview, setShowPreview] = useState(false);
@@ -237,6 +301,13 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
                   label="CNPJ"
                   value={o.cnpj}
                   onChange={(e) => setO({ ...o, cnpj: maskCNPJ(e.target.value) })}
+                  onBlur={(e) => buscarClientePorCnpj(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      buscarClientePorCnpj(e.currentTarget.value);
+                    }
+                  }}
                   maxLength={18}
                 />
               </div>
@@ -248,7 +319,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
               required
             />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-              <div className="sm:col-span-3">
+              <div className="sm:col-span-2">
                 <Input
                   label="CEP"
                   value={o.cep}
@@ -257,7 +328,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
                   maxLength={9}
                 />
               </div>
-              <div className="sm:col-span-7">
+              <div className="sm:col-span-5">
                 <Input
                   label="Endereço"
                   value={o.endereco}
@@ -266,14 +337,30 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
               </div>
               <div className="sm:col-span-2">
                 <Input
+                  label="Número"
+                  value={o.enderecoNumero}
+                  onChange={(e) =>
+                    setO({ ...o, enderecoNumero: e.target.value })
+                  }
+                />
+              </div>
+              <div className="sm:col-span-3">
+                <Input
+                  label="Complemento"
+                  value={o.complemento}
+                  onChange={(e) => setO({ ...o, complemento: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
+              <div className="sm:col-span-3">
+                <Input
                   label="Bairro"
                   value={o.bairro}
                   onChange={(e) => setO({ ...o, bairro: e.target.value })}
                 />
               </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-              <div className="sm:col-span-6">
+              <div className="sm:col-span-4">
                 <Input
                   label="Cidade"
                   value={o.cidade}
@@ -294,7 +381,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
                   ))}
                 </Select>
               </div>
-              <div className="sm:col-span-4">
+              <div className="sm:col-span-3">
                 <Input
                   label="País"
                   value={o.pais}

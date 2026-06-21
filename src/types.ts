@@ -29,6 +29,8 @@ export interface Orcamento {
   // Bloco 3 — Endereço
   cep: string;
   endereco: string;
+  enderecoNumero: string; // número do imóvel (não vem do CEP)
+  complemento: string;    // complemento (não vem do CEP)
   bairro: string;
   cidade: string;
   estado: string;
