@@ -361,7 +361,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
 
           <Block title="Endereço" step={2} icon={<MapPin size={18} />}>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-              <div className="sm:col-span-3">
+              <div className="sm:col-span-2">
                 <Input
                   label="CEP"
                   value={o.cep}
@@ -377,7 +377,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
                   onChange={(e) => setO({ ...o, endereco: e.target.value })}
                 />
               </div>
-              <div className="sm:col-span-1">
+              <div className="sm:col-span-2">
                 <Input
                   label="Número"
                   value={o.enderecoNumero}
