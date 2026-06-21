@@ -35,6 +35,9 @@
   --color-info-soft: #dbeafe;
 }
 
+/* Tema escuro: ativado tanto pela classe .dark (toggle do app) quanto pelo
+   atributo data-theme="dark". */
+.dark,
 [data-theme="dark"] {
   --color-bg: #0b1220;
   --color-surface: #131c2e;

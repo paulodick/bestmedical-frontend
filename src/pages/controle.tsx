@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Search, Eye, X } from "lucide-react";
+import { Search, Eye, X, FileDown, Loader2 } from "lucide-react";
 import { useStore } from "../store";
 import type { Orcamento } from "../types";
 import { STATUS_FIELDS } from "../types";
@@ -8,6 +8,7 @@ import { OrcamentoPreview } from "../components/OrcamentoPreview";
 import { Button, Input, Select, StatusPill } from "../components/ui";
 import { formatBRL, formatDataBR } from "../lib/format";
 import { totalFinal } from "../lib/calc";
+import { api, API_ENABLED } from "../lib/api";
 
 // Adicionamos a interface para aceitar o "onEdit"
 interface ControleProps {
@@ -23,6 +24,23 @@ export function Controle({ onEdit }: ControleProps = {}) {
   const [fData, setFData] = useState("");
   const [fStatus, setFStatus] = useState<string>("");
   const [preview, setPreview] = useState<Orcamento | null>(null);
+  // ID do orçamento cujo PDF está sendo gerado (para mostrar o spinner).
+  const [pdfCarregando, setPdfCarregando] = useState<string | null>(null);
+  const [pdfErro, setPdfErro] = useState<string | null>(null);
+
+  // Abre o PDF gerado pelo servidor. Disponível quando conectado à API.
+  const handlePdf = async (o: Orcamento) => {
+    if (!o.id) return;
+    setPdfErro(null);
+    setPdfCarregando(o.id);
+    try {
+      await api.abrirPdf(o.id);
+    } catch (e) {
+      setPdfErro(e instanceof Error ? e.message : "Não foi possível gerar o PDF.");
+    } finally {
+      setPdfCarregando(null);
+    }
+  };
 
   const empresas = useMemo(
     () => [...new Set(orcamentos.map((o) => o.empresa).filter(Boolean))].sort(),
@@ -185,13 +203,29 @@ export function Controle({ onEdit }: ControleProps = {}) {
                     </div>
                   </td>
                   <td className="px-3 py-2.5 text-center">
-                    <button
-                      onClick={() => setPreview(o)}
-                      title="Visualizar orçamento"
-                      className="inline-flex items-center justify-center rounded-md p-1.5 text-text-muted transition hover:bg-primary-soft hover:text-primary"
-                    >
-                      <Eye size={16} />
-                    </button>
+                    <div className="inline-flex items-center justify-center gap-1">
+                      <button
+                        onClick={() => setPreview(o)}
+                        title="Visualizar orçamento"
+                        className="inline-flex items-center justify-center rounded-md p-1.5 text-text-muted transition hover:bg-primary-soft hover:text-primary"
+                      >
+                        <Eye size={16} />
+                      </button>
+                      {API_ENABLED && (
+                        <button
+                          onClick={() => handlePdf(o)}
+                          disabled={pdfCarregando === o.id}
+                          title="Baixar / abrir PDF do orçamento"
+                          className="inline-flex items-center justify-center rounded-md p-1.5 text-text-muted transition hover:bg-primary-soft hover:text-primary disabled:opacity-50"
+                        >
+                          {pdfCarregando === o.id ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <FileDown size={16} />
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))
@@ -218,6 +252,22 @@ export function Controle({ onEdit }: ControleProps = {}) {
                   <StatusPill key={s.key} on={!!preview[s.key as keyof Orcamento]} label={s.label} />
                 ))}
             </div>
+            {API_ENABLED && preview?.id && (
+              <Button
+                variant="secondary"
+                icon={
+                  pdfCarregando === preview.id ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <FileDown size={16} />
+                  )
+                }
+                onClick={() => preview && handlePdf(preview)}
+                disabled={pdfCarregando === preview.id}
+              >
+                {pdfCarregando === preview.id ? "Gerando…" : "Baixar PDF"}
+              </Button>
+            )}
             <Button variant="ghost" onClick={() => setPreview(null)}>Fechar</Button>
           </>
         }
@@ -226,6 +276,22 @@ export function Controle({ onEdit }: ControleProps = {}) {
           {preview && <OrcamentoPreview o={preview} />}
         </div>
       </Modal>
+
+      {/* Toast de erro ao gerar PDF */}
+      {pdfErro && (
+        <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 animate-[fadeIn_.2s_ease] rounded-lg bg-slate-900 px-4 py-3 text-[13px] font-medium text-white shadow-lg">
+          <span className="flex items-center gap-2">
+            <X size={16} className="text-rose-400" />
+            {pdfErro}
+            <button
+              onClick={() => setPdfErro(null)}
+              className="ml-2 rounded p-0.5 text-white/70 hover:text-white"
+            >
+              <X size={14} />
+            </button>
+          </span>
+        </div>
+      )}
     </div>
   );
 }

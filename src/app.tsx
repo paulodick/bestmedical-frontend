@@ -59,16 +59,33 @@ function NavButton({
 }
 
 function AppShell() {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  // Lê a preferência de tema salva (persiste entre recarregamentos).
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    try {
+      const salvo = localStorage.getItem("bestmedical_theme");
+      if (salvo === "dark" || salvo === "light") return salvo;
+    } catch {
+      /* localStorage indisponível */
+    }
+    return "light";
+  });
   const [page, setPage] = useState<Page>("controle");
   const [orcamentoEdit, setOrcamentoEdit] = useState<Orcamento | null>(null);
   const { logout } = useAuth();
 
   useEffect(() => {
+    const root = document.documentElement;
     if (theme === "dark") {
-      document.documentElement.classList.add("dark");
+      root.classList.add("dark");
+      root.setAttribute("data-theme", "dark");
     } else {
-      document.documentElement.classList.remove("dark");
+      root.classList.remove("dark");
+      root.setAttribute("data-theme", "light");
+    }
+    try {
+      localStorage.setItem("bestmedical_theme", theme);
+    } catch {
+      /* localStorage indisponível */
     }
   }, [theme]);
 

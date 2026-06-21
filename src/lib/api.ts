@@ -135,4 +135,36 @@ export const api = {
     req<{ cep: string; endereco: string; bairro: string; cidade: string; estado: string }>(
       `/cep/${cep.replace(/\D/g, "")}`,
     ),
+
+  // Abre o PDF do orçamento gerado pelo servidor numa nova aba.
+  // O endpoint exige autenticação (Bearer), por isso buscamos com o token,
+  // criamos um Blob local e abrimos a URL temporária — assim funciona mesmo
+  // com a rota protegida.
+  abrirPdf: async (id: string) => {
+    const res = await fetch(`${BASE}/orcamentos/${id}/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      let msg = `Erro ${res.status} ao gerar o PDF`;
+      try {
+        const body = await res.json();
+        msg = body?.message ? String(body.message) : msg;
+      } catch {
+        /* corpo não-JSON */
+      }
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    // Libera a URL temporária após a aba abrir (sem cortar o carregamento).
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    if (!win) {
+      // Bloqueio de pop-up: faz download como alternativa.
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `orcamento-${id}.pdf`;
+      a.click();
+    }
+  },
 };

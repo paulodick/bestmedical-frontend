@@ -193,6 +193,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
 
   const [showPreview, setShowPreview] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [gerandoPdf, setGerandoPdf] = useState(false);
   const [toast, setToast] = useState<{ tipo: "sucesso" | "erro"; msg: string } | null>(
     null
   );
@@ -201,6 +202,38 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
   const mostrarToast = (msg: string, tipo: "sucesso" | "erro" = "sucesso") => {
     setToast({ msg, tipo });
     setTimeout(() => setToast(null), 3000);
+  };
+
+  // Gera o PDF de forma confiável:
+  // - Se o orçamento já foi salvo (tem id) e estamos conectados à API, baixa o
+  //   PDF gerado pelo servidor (idêntico ao oficial, com logo).
+  // - Caso contrário, abre a pré-visualização e usa a impressão do navegador
+  //   (Imprimir > Salvar como PDF). Antes o botão chamava window.print() sem
+  //   abrir a pré-visualização, o que gerava página em branco.
+  const handleGerarPdf = async () => {
+    if (API_ENABLED && o.id) {
+      setGerandoPdf(true);
+      try {
+        await api.abrirPdf(o.id);
+      } catch (e) {
+        mostrarToast(
+          e instanceof Error ? e.message : "Não foi possível gerar o PDF.",
+          "erro",
+        );
+      } finally {
+        setGerandoPdf(false);
+      }
+      return;
+    }
+    // Sem id (ainda não salvo) ou modo demo: abre a pré-visualização e imprime.
+    setShowPreview(true);
+    // Aguarda o modal montar a área de impressão antes de chamar a impressão.
+    setTimeout(() => window.print(), 350);
+    if (API_ENABLED && !o.id) {
+      mostrarToast(
+        "Dica: salve o orçamento para baixar o PDF oficial do servidor.",
+      );
+    }
   };
 
   const handleSalvar = () => {
@@ -254,8 +287,13 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
           <Button variant="secondary" icon={<Eye size={16} />} onClick={() => setShowPreview(true)}>
             Visualizar
           </Button>
-          <Button variant="secondary" icon={<FileDown size={16} />} onClick={() => window.print()}>
-            Gerar PDF
+          <Button
+            variant="secondary"
+            icon={gerandoPdf ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
+            onClick={handleGerarPdf}
+            disabled={gerandoPdf}
+          >
+            {gerandoPdf ? "Gerando…" : "Gerar PDF"}
           </Button>
           <Button
             variant="secondary"
@@ -546,9 +584,11 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
               numParcelas={o.numParcelas}
               parcelas={o.parcelas}
               total={totalFinal(o)}
-              onChangeNum={(n) => setO({ ...o, numParcelas: n })}
+              onChangeNum={(n) =>
+                setO((prev) => ({ ...prev, numParcelas: n }))
+              }
               onChangeParcelas={(novasParcelas) =>
-                setO({ ...o, parcelas: novasParcelas })
+                setO((prev) => ({ ...prev, parcelas: novasParcelas }))
               }
             />
           </Block>
@@ -566,9 +606,19 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
             <Button variant="ghost" onClick={() => setShowPreview(false)}>
               Fechar
             </Button>
-            <Button icon={<Printer size={16} />} onClick={() => window.print()}>
-              Imprimir / PDF
-            </Button>
+            {API_ENABLED && o.id ? (
+              <Button
+                icon={gerandoPdf ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
+                onClick={handleGerarPdf}
+                disabled={gerandoPdf}
+              >
+                {gerandoPdf ? "Gerando…" : "Baixar PDF"}
+              </Button>
+            ) : (
+              <Button icon={<Printer size={16} />} onClick={() => window.print()}>
+                Imprimir / PDF
+              </Button>
+            )}
           </>
         }
       >
