@@ -1,0 +1,16 @@
+# Dependências
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Ambiente
+.env
+.env.*
+!.env.example
+
+# Cache de build
+.vite/
+node_modules/.tmp/
+*.tsbuildinfo
