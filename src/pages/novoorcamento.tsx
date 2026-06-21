@@ -313,8 +313,8 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Coluna Principal (Formulário) */}
         <div className="space-y-6 lg:col-span-8">
-          <Block title="Dados Básicos" step={1} icon={<Building2 size={18} />}>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
+          <Block title="Dados Orçamento" step={1} icon={<Building2 size={18} />}>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Input
                 label="Número"
                 value={o.numero}
@@ -335,33 +335,36 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
                 onChange={(e) => setO({ ...o, data: e.target.value })}
                 required
               />
-              <div className="sm:col-span-2">
-                <Input
-                  label="CNPJ"
-                  value={o.cnpj}
-                  onChange={(e) => setO({ ...o, cnpj: maskCNPJ(e.target.value) })}
-                  onBlur={(e) => buscarClientePorCnpj(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      buscarClientePorCnpj(e.currentTarget.value);
-                    }
-                  }}
-                  maxLength={18}
-                />
-              </div>
             </div>
-            <Input
-              label="Empresa / Cliente"
-              value={o.empresa}
-              onChange={(e) => setO({ ...o, empresa: e.target.value })}
-              required
-            />
           </Block>
 
-          <Block title="Endereço" step={2} icon={<MapPin size={18} />}>
+          <Block title="Dados do Cliente" step={2} icon={<Building2 size={18} />}>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Input
+                label="CNPJ"
+                value={o.cnpj}
+                onChange={(e) => setO({ ...o, cnpj: maskCNPJ(e.target.value) })}
+                onBlur={(e) => buscarClientePorCnpj(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    buscarClientePorCnpj(e.currentTarget.value);
+                  }
+                }}
+                maxLength={18}
+              />
+              <Input
+                label="Empresa / Cliente"
+                value={o.empresa}
+                onChange={(e) => setO({ ...o, empresa: e.target.value })}
+                required
+              />
+            </div>
+          </Block>
+
+          <Block title="Endereço" step={3} icon={<MapPin size={18} />}>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-              <div className="sm:col-span-2">
+              <div className="sm:col-span-3">
                 <Input
                   label="CEP"
                   value={o.cep}
@@ -370,7 +373,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
                   maxLength={9}
                 />
               </div>
-              <div className="sm:col-span-6">
+              <div className="sm:col-span-5">
                 <Input
                   label="Endereço"
                   value={o.endereco}
@@ -394,7 +397,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
                 />
               </div>
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-12">
               <div className="sm:col-span-3">
                 <Input
                   label="Bairro"
@@ -433,7 +436,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
             </div>
           </Block>
 
-          <Block title="Solicitante" step={3} icon={<User size={18} />}>
+          <Block title="Solicitante" step={4} icon={<User size={18} />}>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Input
                 label="Solicitante"
@@ -460,7 +463,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
             </div>
           </Block>
 
-          <Block title="Equipamento e Serviço" step={4}>
+          <Block title="Equipamento e Serviço" step={5}>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
               <Select
                 label="Modalidade"
@@ -512,7 +515,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
             />
           </Block>
 
-          <Block title="Itens e Serviços" step={5}>
+          <Block title="Itens e Serviços" step={6}>
             <ItensGrid
               itens={o.itens}
               onChange={(novosItens) => {
@@ -526,7 +529,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
             />
           </Block>
 
-          <Block title="Finalização e Observações" step={6}>
+          <Block title="Finalização e Observações" step={7}>
             <div className="space-y-4">
               <Textarea
                 label="Observações Internas (Não aparecem no PDF)"
