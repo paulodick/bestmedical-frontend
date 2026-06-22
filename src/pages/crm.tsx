@@ -50,6 +50,30 @@ function corRelacionamento(n: number): string {
   }
 }
 
+// ===== Remove fotos embutidas (PHOTO) de um vCard =====
+// Fotos viram base64 enormes (vCard 3.0/4.0) e não são usadas no CRM.
+// Trata tanto PHOTO em uma linha quanto valores quebrados em várias linhas
+// (continuação começa com espaço ou tab, conforme o padrão vCard).
+function removerFotosVcard(texto: string): string {
+  const linhas = texto.replace(/\r\n/g, "\n").split("\n");
+  const out: string[] = [];
+  let pulandoFoto = false;
+  for (const linha of linhas) {
+    if (pulandoFoto) {
+      // Linhas de continuação do valor começam com espaço ou tab.
+      if (/^[ \t]/.test(linha)) continue;
+      pulandoFoto = false;
+    }
+    // PHOTO:... ou PHOTO;TYPE=...;ENCODING=...:<base64>
+    if (/^PHOTO[;:]/i.test(linha)) {
+      pulandoFoto = true;
+      continue;
+    }
+    out.push(linha);
+  }
+  return out.join("\n");
+}
+
 // ===== Parser de CSV simples (Google Contacts / Excel exportado) =====
 function parseCSV(texto: string): Partial<Contato>[] {
   const linhas = texto.replace(/\r\n/g, "\n").split("\n").filter((l) => l.trim());
@@ -298,7 +322,10 @@ export function Crm() {
           setImportando(false);
           return;
         }
-        res = await api.importarContatosCrm({ vcard: texto });
+        // Remove fotos embutidas (PHOTO) — não são usadas no CRM e são a
+        // principal causa de arquivos enormes (cada foto vira base64 gigante).
+        const vcardLeve = removerFotosVcard(texto);
+        res = await api.importarContatosCrm({ vcard: vcardLeve });
       } else {
         const itens = parseCSV(texto);
         if (!itens.length) {
@@ -316,11 +343,18 @@ export function Crm() {
       );
       await carregar();
     } catch (err: any) {
-      setErro(
-        "Falha ao importar: " +
-          (err?.message || "erro desconhecido") +
-          ". Verifique se você está conectado (login) e se o arquivo é .vcf ou .csv.",
-      );
+      const msg = String(err?.message || "");
+      if (/413|too large|muito grande|payload/i.test(msg)) {
+        setErro(
+          "O arquivo ainda ficou grande demais para o servidor. Tente exportar os contatos sem fotos, ou divida a agenda em arquivos menores.",
+        );
+      } else {
+        setErro(
+          "Falha ao importar: " +
+            (err?.message || "erro desconhecido") +
+            ". Verifique se você está conectado (login) e se o arquivo é .vcf ou .csv.",
+        );
+      }
     } finally {
       setImportando(false);
     }
