@@ -8,8 +8,9 @@ import {
   Users,
   Save,
   X,
+  Filter,
 } from "lucide-react";
-import { Block, Button, Input } from "../components/ui";
+import { Block, Button } from "../components/ui";
 import { api, API_ENABLED } from "../lib/api";
 
 // ===== Tipos =====
@@ -21,6 +22,7 @@ interface Contato {
   telefonePessoal?: string | null;
   email?: string | null;
   relacionamento: number;
+  pessoal: boolean;
 }
 
 // Rótulos do nível de relacionamento (1 a 5).
@@ -49,7 +51,6 @@ function corRelacionamento(n: number): string {
 }
 
 // ===== Parser de CSV simples (Google Contacts / Excel exportado) =====
-// Suporta vírgula como separador e aspas. Mapeia colunas conhecidas.
 function parseCSV(texto: string): Partial<Contato>[] {
   const linhas = texto.replace(/\r\n/g, "\n").split("\n").filter((l) => l.trim());
   if (linhas.length < 2) return [];
@@ -93,9 +94,7 @@ function parseCSV(texto: string): Partial<Contato>[] {
   for (let i = 1; i < linhas.length; i++) {
     const c = dividir(linhas[i]);
     let nome = iNome >= 0 ? c[iNome] || "" : "";
-    if ((!nome || iNome < 0) && iSobrenome >= 0) {
-      nome = `${nome} ${c[iSobrenome] || ""}`.trim();
-    } else if (iSobrenome >= 0 && c[iSobrenome]) {
+    if (iSobrenome >= 0 && c[iSobrenome]) {
       nome = `${nome} ${c[iSobrenome]}`.trim();
     }
     if (!nome) continue;
@@ -110,18 +109,30 @@ function parseCSV(texto: string): Partial<Contato>[] {
   return out;
 }
 
+// Opções do filtro da coluna Pessoal.
+type FiltroPessoal = "desmarcados" | "marcados" | "todos";
+
 export function Crm() {
   const [contatos, setContatos] = useState<Contato[]>([]);
   const [carregando, setCarregando] = useState(false);
-  const [busca, setBusca] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [importando, setImportando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
-  // Linhas com edições pendentes (id -> contato editado).
   const [editados, setEditados] = useState<Record<string, Contato>>({});
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // ===== Filtros por coluna =====
+  const [fNome, setFNome] = useState("");
+  const [fEmpresa, setFEmpresa] = useState("");
+  const [fTelefone, setFTelefone] = useState("");
+  const [fTelefonePessoal, setFTelefonePessoal] = useState("");
+  const [fEmail, setFEmail] = useState("");
+  const [fRelacionamento, setFRelacionamento] = useState<number | "">("");
+  // Por padrão mostra apenas os contatos NÃO pessoais (profissionais).
+  const [fPessoal, setFPessoal] = useState<FiltroPessoal>("desmarcados");
+
+  // Carrega TODOS os contatos uma vez; a filtragem é feita no cliente.
   const carregar = useCallback(async () => {
     if (!API_ENABLED) {
       setErro(
@@ -132,10 +143,7 @@ export function Crm() {
     setCarregando(true);
     setErro(null);
     try {
-      const q = busca.trim()
-        ? `?pageSize=100&busca=${encodeURIComponent(busca.trim())}`
-        : "?pageSize=100";
-      const res = await api.listarContatosCrm(q);
+      const res = await api.listarContatosCrm("?pageSize=100");
       setContatos(res.data as Contato[]);
       setEditados({});
     } catch (e: any) {
@@ -143,22 +151,64 @@ export function Crm() {
     } finally {
       setCarregando(false);
     }
-  }, [busca]);
+  }, []);
 
   useEffect(() => {
     carregar();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Busca com debounce.
-  useEffect(() => {
-    const t = setTimeout(() => carregar(), 350);
-    return () => clearTimeout(t);
-  }, [busca]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ===== Aplicação dos filtros (em memória) =====
+  const filtrados = useMemo(() => {
+    const norm = (s: string | null | undefined) => (s || "").toLowerCase();
+    return contatos.filter((c) => {
+      if (fNome && !norm(c.nome).includes(fNome.toLowerCase())) return false;
+      if (fEmpresa && !norm(c.empresa).includes(fEmpresa.toLowerCase())) return false;
+      if (fTelefone && !norm(c.telefone).includes(fTelefone.toLowerCase())) return false;
+      if (
+        fTelefonePessoal &&
+        !norm(c.telefonePessoal).includes(fTelefonePessoal.toLowerCase())
+      )
+        return false;
+      if (fEmail && !norm(c.email).includes(fEmail.toLowerCase())) return false;
+      if (fRelacionamento !== "" && c.relacionamento !== fRelacionamento) return false;
+      if (fPessoal === "desmarcados" && c.pessoal) return false;
+      if (fPessoal === "marcados" && !c.pessoal) return false;
+      return true;
+    });
+  }, [
+    contatos,
+    fNome,
+    fEmpresa,
+    fTelefone,
+    fTelefonePessoal,
+    fEmail,
+    fRelacionamento,
+    fPessoal,
+  ]);
 
   const totalQuentes = useMemo(
-    () => contatos.filter((c) => c.relacionamento >= 4).length,
-    [contatos],
+    () => filtrados.filter((c) => c.relacionamento >= 4).length,
+    [filtrados],
   );
+
+  const algumFiltroAtivo =
+    !!fNome ||
+    !!fEmpresa ||
+    !!fTelefone ||
+    !!fTelefonePessoal ||
+    !!fEmail ||
+    fRelacionamento !== "" ||
+    fPessoal !== "desmarcados";
+
+  const limparFiltros = () => {
+    setFNome("");
+    setFEmpresa("");
+    setFTelefone("");
+    setFTelefonePessoal("");
+    setFEmail("");
+    setFRelacionamento("");
+    setFPessoal("desmarcados");
+  };
 
   // Aplica edição em memória; só persiste ao salvar a linha.
   const editarCampo = (id: string, campo: keyof Contato, valor: any) => {
@@ -171,20 +221,31 @@ export function Crm() {
     });
   };
 
+  // O checkbox "Pessoal" salva imediatamente (ação de organização rápida).
+  const alternarPessoal = async (id: string, valor: boolean) => {
+    setContatos((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, pessoal: valor } : c)),
+    );
+    try {
+      const c = contatos.find((x) => x.id === id);
+      if (!c) return;
+      await api.atualizarContatoCrm(id, { ...semId(c), pessoal: valor });
+    } catch (e: any) {
+      setErro(e?.message || "Falha ao atualizar 'Pessoal'.");
+      // reverte em caso de erro
+      setContatos((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, pessoal: !valor } : c)),
+      );
+    }
+  };
+
   const salvarLinha = async (id: string) => {
     const c = contatos.find((x) => x.id === id);
     if (!c) return;
     setSalvandoId(id);
     setErro(null);
     try {
-      await api.atualizarContatoCrm(id, {
-        nome: c.nome,
-        empresa: c.empresa || undefined,
-        telefone: c.telefone || undefined,
-        telefonePessoal: c.telefonePessoal || undefined,
-        email: c.email || undefined,
-        relacionamento: c.relacionamento,
-      });
+      await api.atualizarContatoCrm(id, semId(c));
       setEditados((prev) => {
         const novo = { ...prev };
         delete novo[id];
@@ -230,11 +291,20 @@ export function Crm() {
       const ehVcf = /\.vcf$/i.test(file.name) || /BEGIN:VCARD/i.test(texto);
       let res;
       if (ehVcf) {
+        if (!/BEGIN:VCARD/i.test(texto)) {
+          setErro(
+            "O arquivo .vcf parece vazio ou em formato não reconhecido (não encontrei nenhum cartão VCARD).",
+          );
+          setImportando(false);
+          return;
+        }
         res = await api.importarContatosCrm({ vcard: texto });
       } else {
         const itens = parseCSV(texto);
         if (!itens.length) {
-          setErro("Não encontrei contatos no arquivo. Verifique o formato (.vcf ou .csv).");
+          setErro(
+            "Não encontrei contatos no arquivo. Use um .vcf (vCard) ou um .csv com cabeçalho (ex.: Name, Phone, E-mail).",
+          );
           setImportando(false);
           return;
         }
@@ -246,7 +316,11 @@ export function Crm() {
       );
       await carregar();
     } catch (err: any) {
-      setErro(err?.message || "Falha ao importar o arquivo.");
+      setErro(
+        "Falha ao importar: " +
+          (err?.message || "erro desconhecido") +
+          ". Verifique se você está conectado (login) e se o arquivo é .vcf ou .csv.",
+      );
     } finally {
       setImportando(false);
     }
@@ -259,8 +333,8 @@ export function Crm() {
         <div>
           <h1 className="text-2xl font-bold text-text">CRM — Contatos</h1>
           <p className="mt-1 text-sm text-text-muted">
-            Sua agenda comercial. Importe do celular (.vcf) ou planilha (.csv) e
-            classifique cada contato de 1 a 5.
+            Sua agenda comercial. Importe do celular (.vcf) ou planilha (.csv),
+            filtre por qualquer coluna e classifique cada contato de 1 a 5.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -279,34 +353,39 @@ export function Crm() {
           >
             {importando ? "Importando..." : "Importar contatos"}
           </Button>
-          <Button
-            icon={<Plus size={16} />}
-            onClick={adicionar}
-            disabled={!API_ENABLED}
-          >
+          <Button icon={<Plus size={16} />} onClick={adicionar} disabled={!API_ENABLED}>
             Adicionar
           </Button>
         </div>
       </div>
 
-      {/* Resumo + busca */}
+      {/* Resumo + filtro Pessoal + limpar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4 text-sm text-text-muted">
+        <div className="flex flex-wrap items-center gap-4 text-sm text-text-muted">
           <span className="inline-flex items-center gap-1.5">
-            <Users size={15} /> {contatos.length} contato(s)
+            <Users size={15} /> {filtrados.length} de {contatos.length} contato(s)
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-emerald-500" />
             {totalQuentes} quente(s) (4-5)
           </span>
         </div>
-        <div className="w-full sm:max-w-xs">
-          <Input
-            icon={<Search size={16} />}
-            placeholder="Buscar por nome, empresa, e-mail..."
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-          />
+        <div className="flex items-center gap-2">
+          <span className="text-[13px] text-text-muted">Pessoais:</span>
+          <select
+            value={fPessoal}
+            onChange={(e) => setFPessoal(e.target.value as FiltroPessoal)}
+            className="cursor-pointer rounded-md border border-border bg-surface px-2 py-1.5 text-[13px] text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="desmarcados">Ocultar pessoais</option>
+            <option value="marcados">Só pessoais</option>
+            <option value="todos">Mostrar todos</option>
+          </select>
+          {algumFiltroAtivo && (
+            <Button variant="ghost" icon={<X size={14} />} onClick={limparFiltros}>
+              Limpar filtros
+            </Button>
+          )}
         </div>
       </div>
 
@@ -334,114 +413,192 @@ export function Crm() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] border-collapse text-sm">
+            <table className="w-full min-w-[1040px] border-collapse text-sm">
               <thead>
+                {/* Títulos */}
                 <tr className="border-b border-divider text-left text-[12px] uppercase tracking-wide text-text-faint">
+                  <th className="px-2 py-2 text-center font-semibold">Pessoal</th>
                   <th className="px-2 py-2 font-semibold">Nome</th>
                   <th className="px-2 py-2 font-semibold">Empresa</th>
                   <th className="px-2 py-2 font-semibold">Telefone</th>
                   <th className="px-2 py-2 font-semibold">Telefone Pessoal</th>
                   <th className="px-2 py-2 font-semibold">E-mail</th>
                   <th className="px-2 py-2 font-semibold">Relacionamento</th>
-                  <th className="px-2 py-2 font-semibold text-right">Ações</th>
+                  <th className="px-2 py-2 text-right font-semibold">Ações</th>
+                </tr>
+                {/* Linha de filtros */}
+                <tr className="border-b border-divider bg-surface-offset/40">
+                  <th className="px-2 py-2 text-center text-text-faint">
+                    <Filter size={13} className="mx-auto" />
+                  </th>
+                  <th className="px-1 py-1.5">
+                    <FiltroInput value={fNome} onChange={setFNome} placeholder="Filtrar nome" />
+                  </th>
+                  <th className="px-1 py-1.5">
+                    <FiltroInput value={fEmpresa} onChange={setFEmpresa} placeholder="Filtrar empresa" />
+                  </th>
+                  <th className="px-1 py-1.5">
+                    <FiltroInput value={fTelefone} onChange={setFTelefone} placeholder="Filtrar" />
+                  </th>
+                  <th className="px-1 py-1.5">
+                    <FiltroInput value={fTelefonePessoal} onChange={setFTelefonePessoal} placeholder="Filtrar" />
+                  </th>
+                  <th className="px-1 py-1.5">
+                    <FiltroInput value={fEmail} onChange={setFEmail} placeholder="Filtrar e-mail" />
+                  </th>
+                  <th className="px-1 py-1.5">
+                    <select
+                      value={fRelacionamento}
+                      onChange={(e) =>
+                        setFRelacionamento(e.target.value === "" ? "" : Number(e.target.value))
+                      }
+                      className="w-full cursor-pointer rounded-md border border-border bg-surface px-2 py-1.5 text-[12px] font-normal text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    >
+                      <option value="">Todos</option>
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <option key={n} value={n}>
+                          {RELACIONAMENTO_LABEL[n]}
+                        </option>
+                      ))}
+                    </select>
+                  </th>
+                  <th className="px-1 py-1.5" />
                 </tr>
               </thead>
               <tbody>
-                {contatos.map((c) => {
-                  const sujo = !!editados[c.id];
-                  return (
-                    <tr
-                      key={c.id}
-                      className="border-b border-divider/60 align-middle hover:bg-surface-offset/40"
-                    >
-                      <td className="px-1 py-1">
-                        <CelulaInput
-                          value={c.nome}
-                          onChange={(v) => editarCampo(c.id, "nome", v)}
-                        />
-                      </td>
-                      <td className="px-1 py-1">
-                        <CelulaInput
-                          value={c.empresa || ""}
-                          onChange={(v) => editarCampo(c.id, "empresa", v)}
-                        />
-                      </td>
-                      <td className="px-1 py-1">
-                        <CelulaInput
-                          value={c.telefone || ""}
-                          onChange={(v) => editarCampo(c.id, "telefone", v)}
-                        />
-                      </td>
-                      <td className="px-1 py-1">
-                        <CelulaInput
-                          value={c.telefonePessoal || ""}
-                          onChange={(v) => editarCampo(c.id, "telefonePessoal", v)}
-                        />
-                      </td>
-                      <td className="px-1 py-1">
-                        <CelulaInput
-                          type="email"
-                          value={c.email || ""}
-                          onChange={(v) => editarCampo(c.id, "email", v)}
-                        />
-                      </td>
-                      <td className="px-1 py-1">
-                        <select
-                          value={c.relacionamento}
-                          onChange={(e) =>
-                            editarCampo(c.id, "relacionamento", Number(e.target.value))
-                          }
-                          className={`w-full cursor-pointer rounded-md border px-2 py-1.5 text-[13px] font-medium outline-none transition focus:ring-2 focus:ring-primary/20 ${corRelacionamento(
-                            c.relacionamento,
-                          )}`}
-                        >
-                          {[1, 2, 3, 4, 5].map((n) => (
-                            <option key={n} value={n}>
-                              {RELACIONAMENTO_LABEL[n]}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-1 py-1">
-                        <div className="flex items-center justify-end gap-1">
-                          {sujo && (
-                            <button
-                              title="Salvar"
-                              onClick={() => salvarLinha(c.id)}
-                              disabled={salvandoId === c.id}
-                              className="rounded-md p-1.5 text-emerald-600 transition hover:bg-emerald-500/10 disabled:opacity-50 dark:text-emerald-400"
-                            >
-                              {salvandoId === c.id ? (
-                                <Loader2 size={16} className="animate-spin" />
-                              ) : (
-                                <Save size={16} />
-                              )}
-                            </button>
-                          )}
-                          <button
-                            title="Remover"
-                            onClick={() => remover(c.id)}
-                            className="rounded-md p-1.5 text-text-muted transition hover:bg-danger/10 hover:text-danger"
+                {filtrados.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-sm text-text-muted">
+                      Nenhum contato corresponde aos filtros.
+                    </td>
+                  </tr>
+                ) : (
+                  filtrados.map((c) => {
+                    const sujo = !!editados[c.id];
+                    return (
+                      <tr
+                        key={c.id}
+                        className="border-b border-divider/60 align-middle hover:bg-surface-offset/40"
+                      >
+                        <td className="px-2 py-1 text-center">
+                          <input
+                            type="checkbox"
+                            checked={c.pessoal}
+                            onChange={(e) => alternarPessoal(c.id, e.target.checked)}
+                            title="Marcar como contato pessoal"
+                            className="h-4 w-4 cursor-pointer accent-primary"
+                          />
+                        </td>
+                        <td className="px-1 py-1">
+                          <CelulaInput value={c.nome} onChange={(v) => editarCampo(c.id, "nome", v)} />
+                        </td>
+                        <td className="px-1 py-1">
+                          <CelulaInput value={c.empresa || ""} onChange={(v) => editarCampo(c.id, "empresa", v)} />
+                        </td>
+                        <td className="px-1 py-1">
+                          <CelulaInput value={c.telefone || ""} onChange={(v) => editarCampo(c.id, "telefone", v)} />
+                        </td>
+                        <td className="px-1 py-1">
+                          <CelulaInput
+                            value={c.telefonePessoal || ""}
+                            onChange={(v) => editarCampo(c.id, "telefonePessoal", v)}
+                          />
+                        </td>
+                        <td className="px-1 py-1">
+                          <CelulaInput type="email" value={c.email || ""} onChange={(v) => editarCampo(c.id, "email", v)} />
+                        </td>
+                        <td className="px-1 py-1">
+                          <select
+                            value={c.relacionamento}
+                            onChange={(e) => editarCampo(c.id, "relacionamento", Number(e.target.value))}
+                            className={`w-full cursor-pointer rounded-md border px-2 py-1.5 text-[13px] font-medium outline-none transition focus:ring-2 focus:ring-primary/20 ${corRelacionamento(
+                              c.relacionamento,
+                            )}`}
                           >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <option key={n} value={n}>
+                                {RELACIONAMENTO_LABEL[n]}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-1 py-1">
+                          <div className="flex items-center justify-end gap-1">
+                            {sujo && (
+                              <button
+                                title="Salvar"
+                                onClick={() => salvarLinha(c.id)}
+                                disabled={salvandoId === c.id}
+                                className="rounded-md p-1.5 text-emerald-600 transition hover:bg-emerald-500/10 disabled:opacity-50 dark:text-emerald-400"
+                              >
+                                {salvandoId === c.id ? (
+                                  <Loader2 size={16} className="animate-spin" />
+                                ) : (
+                                  <Save size={16} />
+                                )}
+                              </button>
+                            )}
+                            <button
+                              title="Remover"
+                              onClick={() => remover(c.id)}
+                              className="rounded-md p-1.5 text-text-muted transition hover:bg-danger/10 hover:text-danger"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
         )}
         {Object.keys(editados).length > 0 && (
           <div className="mt-3 flex items-center gap-2 text-[12px] text-amber-600 dark:text-amber-400">
-            <X size={14} />
+            <Save size={14} />
             Há alterações não salvas. Clique no ícone de salvar (verde) em cada
-            linha alterada.
+            linha alterada. (O checkbox Pessoal é salvo automaticamente.)
           </div>
         )}
       </Block>
+    </div>
+  );
+}
+
+// Remove o id antes de enviar ao backend (o DTO não espera id).
+function semId(c: Contato) {
+  return {
+    nome: c.nome,
+    empresa: c.empresa || undefined,
+    telefone: c.telefone || undefined,
+    telefonePessoal: c.telefonePessoal || undefined,
+    email: c.email || undefined,
+    relacionamento: c.relacionamento,
+    pessoal: c.pessoal,
+  };
+}
+
+// Campo de filtro compacto (cabeçalho da tabela).
+function FiltroInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div className="relative">
+      <Search size={12} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-text-faint" />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-md border border-border bg-surface py-1.5 pl-7 pr-2 text-[12px] font-normal text-text placeholder:text-text-faint outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+      />
     </div>
   );
 }
