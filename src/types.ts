@@ -1,5 +1,63 @@
 // ===== Tipos de domínio do sistema de orçamentos =====
 
+// ===== Ordem de Serviço =====
+export interface ItemOS {
+  id?: string;
+  codigo: string;
+  item: string;       // espelha o campo 'descricao' no backend
+  quantidade: number;
+  realizado: boolean;
+  detalhes: string;
+}
+
+export interface FotoOS {
+  id?: string;
+  dataUrl: string;   // base64 data URL (jpeg/png)
+  legenda: string;
+  ordem?: number;
+}
+
+export interface OrdemServico {
+  id: string;
+  numero: string;
+  orcamentoId: string;
+  data: string; // ISO yyyy-mm-dd
+  // Empresa / endereço (snapshots)
+  cnpj: string;
+  empresa: string;
+  cep: string;
+  endereco: string;
+  enderecoNumero: string;
+  complemento: string;
+  bairro: string;
+  cidade: string;
+  estado: string;
+  pais: string;
+  // Solicitante
+  solicitante: string;
+  setor: string;
+  telefone: string;
+  email: string;
+  // Equipamento
+  modalidade: string;
+  marca: string;
+  marcaOutras: string;
+  modelo: string;
+  numeroSerie: string;
+  descricaoVisita: string;
+  // Campos próprios da OS
+  descricaoServico: string;
+  observacoes: string;
+  assinaturaCliente: string;
+  assinaturaTecnico: string;
+  // Status
+  enviado: boolean;
+  // Listas
+  itens: ItemOS[];
+  fotos: FotoOS[];
+}
+
+
 export interface ItemOrcamento {
   id: string;
   codigo: string;

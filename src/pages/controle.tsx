@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Search, Eye, X, FileDown, Loader2 } from "lucide-react";
+import { Search, Eye, X, FileDown, Loader2, FileText } from "lucide-react";
 import { useStore } from "../store";
 import type { Orcamento } from "../types";
 import { STATUS_FIELDS } from "../types";
@@ -10,12 +10,14 @@ import { formatBRL, formatDataBR } from "../lib/format";
 import { totalFinal } from "../lib/calc";
 import { api, API_ENABLED } from "../lib/api";
 
-// Adicionamos a interface para aceitar o "onEdit"
+// Interface do componente: aceita onEdit e onAbrirOs
 interface ControleProps {
   onEdit?: (orcamento: Orcamento) => void;
+  // Callback chamado ao clicar no ícone de OS (só aparece quando aprovado)
+  onAbrirOs?: (orcamentoId: string) => void;
 }
 
-export function Controle({ onEdit }: ControleProps = {}) {
+export function Controle({ onEdit, onAbrirOs }: ControleProps = {}) {
   const { orcamentos, atualizar } = useStore();
 
   const [busca, setBusca] = useState("");
@@ -223,6 +225,16 @@ export function Controle({ onEdit }: ControleProps = {}) {
                           ) : (
                             <FileDown size={16} />
                           )}
+                        </button>
+                      )}
+                      {/* Ícone de OS — só aparece quando o orçamento está aprovado */}
+                      {o.aprovado && onAbrirOs && (
+                        <button
+                          onClick={() => onAbrirOs(o.id)}
+                          title="Abrir Ordem de Serviço"
+                          className="inline-flex items-center justify-center rounded-md p-1.5 text-text-muted transition hover:bg-success-soft hover:text-success"
+                        >
+                          <FileText size={16} />
                         </button>
                       )}
                     </div>

@@ -151,6 +151,55 @@ export const api = {
       `/cep/${cep.replace(/\D/g, "")}`,
     ),
 
+  // ===== Ordens de Serviço =====
+  // Busca a OS vinculada a um orçamento (lança 404 se ainda não existe)
+  buscarOsPorOrcamento: (orcamentoId: string) =>
+    req<any>(`/ordens-servico/por-orcamento/${orcamentoId}`),
+
+  // Busca a OS pelo id próprio
+  obterOs: (id: string) => req<any>(`/ordens-servico/${id}`),
+
+  // Atualiza os campos editáveis da OS (itens, fotos, assinaturas, textos)
+  atualizarOs: (id: string, dados: any) =>
+    req<any>(`/ordens-servico/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(dados),
+    }),
+
+  // Envia a OS por e-mail para múltiplos destinatários
+  enviarOs: (id: string, destinatarios: string[]) =>
+    req<{ ok: boolean; mensagem: string }>(`/ordens-servico/${id}/enviar`, {
+      method: "POST",
+      body: JSON.stringify({ destinatarios }),
+    }),
+
+  // Abre o PDF da OS em nova aba (igual ao abrirPdf do orçamento)
+  abrirPdfOs: async (id: string) => {
+    const res = await fetch(`${BASE}/ordens-servico/${id}/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      let msg = `Erro ${res.status} ao gerar o PDF da OS`;
+      try {
+        const body = await res.json();
+        msg = body?.message ? String(body.message) : msg;
+      } catch {
+        /* corpo não-JSON */
+      }
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    if (!win) {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `os-${id}.pdf`;
+      a.click();
+    }
+  },
+
   // Abre o PDF do orçamento gerado pelo servidor numa nova aba.
   // O endpoint exige autenticação (Bearer), por isso buscamos com o token,
   // criamos um Blob local e abrimos a URL temporária — assim funciona mesmo

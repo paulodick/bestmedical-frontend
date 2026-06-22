@@ -4,13 +4,14 @@ import { StoreProvider } from "./store";
 import { NovoOrcamento } from "./pages/novoorcamento";
 import { Controle } from "./pages/controle";
 import { Crm } from "./pages/crm";
+import { OrdemServicoPage } from "./pages/ordemservico";
 import { Login } from "./pages/Login";
 import { AuthProvider, useAuth } from "./auth";
 import { API_ENABLED } from "./lib/api";
 import logoSymbol from "./assets/logo-symbol.png";
 import type { Orcamento } from "./types";
 
-type Page = "novo" | "controle" | "crm";
+type Page = "novo" | "controle" | "crm" | "os";
 
 function Logo() {
   return (
@@ -72,7 +73,18 @@ function AppShell() {
   });
   const [page, setPage] = useState<Page>("controle");
   const [orcamentoEdit, setOrcamentoEdit] = useState<Orcamento | null>(null);
-  const { logout } = useAuth();
+  // Id do orçamento cuja OS deve ser aberta
+  const [osOrcamentoId, setOsOrcamentoId] = useState<string | null>(null);
+  const { logout, user } = useAuth();
+
+  // CRM é exclusivo do login paulo@bestmedical.com.br.
+  const podeVerCrm =
+    (user?.email || "").trim().toLowerCase() === "paulo@bestmedical.com.br";
+
+  // Se o usuário atual não pode ver o CRM mas está nessa página, volta ao Controle.
+  useEffect(() => {
+    if (page === "crm" && !podeVerCrm) setPage("controle");
+  }, [page, podeVerCrm]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -117,13 +129,15 @@ function AppShell() {
               >
                 Controle
               </NavButton>
-              <NavButton
-                active={page === "crm"}
-                onClick={() => setPage("crm")}
-                icon={<Users size={17} />}
-              >
-                CRM
-              </NavButton>
+              {podeVerCrm && (
+                <NavButton
+                  active={page === "crm"}
+                  onClick={() => setPage("crm")}
+                  icon={<Users size={17} />}
+                >
+                  CRM
+                </NavButton>
+              )}
               <button
                 onClick={toggleTheme}
                 title="Alternar tema"
@@ -148,14 +162,26 @@ function AppShell() {
         <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 print:px-0 print:py-0">
           {page === "novo" ? (
             <NovoOrcamento orcamentoParaEditar={orcamentoEdit} />
-          ) : page === "crm" ? (
+          ) : page === "os" && osOrcamentoId ? (
+            <OrdemServicoPage
+              orcamentoId={osOrcamentoId}
+              onVoltar={() => {
+                setOsOrcamentoId(null);
+                setPage("controle");
+              }}
+            />
+          ) : page === "crm" && podeVerCrm ? (
             <Crm />
           ) : (
-            <Controle 
+            <Controle
               onEdit={(orc) => {
                 setOrcamentoEdit(orc);
                 setPage("novo");
-              }} 
+              }}
+              onAbrirOs={(orcId) => {
+                setOsOrcamentoId(orcId);
+                setPage("os");
+              }}
             />
           )}
         </main>

@@ -167,7 +167,7 @@ export function Crm() {
     setCarregando(true);
     setErro(null);
     try {
-      const res = await api.listarContatosCrm("?pageSize=100");
+      const res = await api.listarContatosCrm("?pageSize=5000");
       setContatos(res.data as Contato[]);
       setEditados({});
     } catch (e: any) {
