@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
-import { FilePlus2, LayoutList, Moon, Sun, LogOut, Loader2 } from "lucide-react";
+import { FilePlus2, LayoutList, Moon, Sun, LogOut, Loader2, Users } from "lucide-react";
 import { StoreProvider } from "./store";
 import { NovoOrcamento } from "./pages/novoorcamento";
 import { Controle } from "./pages/controle";
+import { Crm } from "./pages/crm";
 import { Login } from "./pages/Login";
 import { AuthProvider, useAuth } from "./auth";
 import { API_ENABLED } from "./lib/api";
 import logoSymbol from "./assets/logo-symbol.png";
 import type { Orcamento } from "./types";
 
-type Page = "novo" | "controle";
+type Page = "novo" | "controle" | "crm";
 
 function Logo() {
   return (
@@ -116,6 +117,13 @@ function AppShell() {
               >
                 Controle
               </NavButton>
+              <NavButton
+                active={page === "crm"}
+                onClick={() => setPage("crm")}
+                icon={<Users size={17} />}
+              >
+                CRM
+              </NavButton>
               <button
                 onClick={toggleTheme}
                 title="Alternar tema"
@@ -140,6 +148,8 @@ function AppShell() {
         <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 print:px-0 print:py-0">
           {page === "novo" ? (
             <NovoOrcamento orcamentoParaEditar={orcamentoEdit} />
+          ) : page === "crm" ? (
+            <Crm />
           ) : (
             <Controle 
               onEdit={(orc) => {

@@ -130,6 +130,21 @@ export const api = {
       email: string;
     } | null>(`/clientes/por-cnpj?cnpj=${encodeURIComponent(cnpj.trim())}`),
 
+  // ===== CRM (agenda de contatos) =====
+  listarContatosCrm: (query = "") =>
+    req<ListaResposta<any>>(`/crm/contatos${query}`),
+  criarContatoCrm: (c: any) =>
+    req<any>("/crm/contatos", { method: "POST", body: JSON.stringify(c) }),
+  atualizarContatoCrm: (id: string, c: any) =>
+    req<any>(`/crm/contatos/${id}`, { method: "PUT", body: JSON.stringify(c) }),
+  removerContatoCrm: (id: string) =>
+    req<void>(`/crm/contatos/${id}`, { method: "DELETE" }),
+  importarContatosCrm: (payload: { vcard?: string; contatos?: any[] }) =>
+    req<{ importados: number; ignorados: number; total: number }>(
+      "/crm/contatos/importar",
+      { method: "POST", body: JSON.stringify(payload) },
+    ),
+
   // CEP
   consultarCep: (cep: string) =>
     req<{ cep: string; endereco: string; bairro: string; cidade: string; estado: string }>(
