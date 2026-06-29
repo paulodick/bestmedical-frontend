@@ -35,6 +35,7 @@ function Logo() {
   );
 }
 
+// Item do menu lateral (sidebar à esquerda no desktop).
 function NavButton({
   active,
   onClick,
@@ -49,14 +50,14 @@ function NavButton({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition ${
+      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
         active
           ? "bg-primary text-white shadow-sm"
-          : "text-text-muted hover:bg-surface-offset hover:text-text"
+          : "text-slate-300 hover:bg-white/10 hover:text-white"
       }`}
     >
-      {icon}
-      <span className="hidden sm:inline">{children}</span>
+      <span className="shrink-0">{icon}</span>
+      <span>{children}</span>
     </button>
   );
 }
@@ -108,52 +109,134 @@ function AppShell() {
 
   return (
     <StoreProvider>
-      <div className="min-h-screen bg-surface text-text font-sans selection:bg-primary/20">
-        {/* Header */}
-        <header className="sticky top-0 z-30 border-b border-border bg-surface/80 backdrop-blur-md print:hidden">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
-            <Logo />
-            <nav className="flex items-center gap-1 sm:gap-2">
+      <div className="min-h-screen bg-surface text-text font-sans selection:bg-primary/20 lg:flex">
+        {/* Menu lateral à esquerda (desktop) */}
+        <aside className="sticky top-0 z-30 hidden h-screen w-64 shrink-0 flex-col bg-slate-900 print:hidden lg:flex">
+          <div className="flex items-center gap-2.5 border-b border-white/10 px-5 py-4">
+            <img
+              src={logoSymbol}
+              alt="Best Medical"
+              className="h-9 w-auto shrink-0 object-contain"
+            />
+            <div className="leading-tight">
+              <div className="text-[14px] font-bold text-white">Best Medical</div>
+              <div className="text-[10px] text-slate-400">Sistema de Orçamentos</div>
+            </div>
+          </div>
+
+          <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
+            <NavButton
+              active={page === "novo"}
+              onClick={() => {
+                setOrcamentoEdit(null); // Tela limpa ao clicar em "Novo Orçamento"
+                setPage("novo");
+              }}
+              icon={<FilePlus2 size={18} />}
+            >
+              Novo Orçamento
+            </NavButton>
+            <NavButton
+              active={page === "proposta"}
+              onClick={() => {
+                setPropostaEdit(null); // Tela limpa ao clicar em "Proposta de Contrato"
+                setPage("proposta");
+              }}
+              icon={<FileText size={18} />}
+            >
+              Proposta de Contrato
+            </NavButton>
+            <NavButton
+              active={page === "controle"}
+              onClick={() => setPage("controle")}
+              icon={<LayoutList size={18} />}
+            >
+              Controle
+            </NavButton>
+            {podeVerCrm && (
               <NavButton
-                active={page === "novo"}
+                active={page === "crm"}
+                onClick={() => setPage("crm")}
+                icon={<Users size={18} />}
+              >
+                CRM
+              </NavButton>
+            )}
+          </nav>
+
+          <div className="border-t border-white/10 px-3 py-3">
+            {user?.email && (
+              <div className="mb-2 truncate px-2 text-[11px] text-slate-400">
+                {user.email}
+              </div>
+            )}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={toggleTheme}
+                title="Alternar tema"
+                className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-300 transition hover:bg-white/10 hover:text-white"
+              >
+                {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+                <span>Tema</span>
+              </button>
+              {API_ENABLED && (
+                <button
+                  onClick={logout}
+                  title="Sair"
+                  className="ml-auto flex items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-300 transition hover:bg-white/10 hover:text-white"
+                >
+                  <LogOut size={18} />
+                  <span>Sair</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </aside>
+
+        {/* Menu no topo (mobile) */}
+        <header className="sticky top-0 z-30 border-b border-border bg-surface/80 backdrop-blur-md print:hidden lg:hidden">
+          <div className="flex items-center justify-between gap-2 px-4 py-3">
+            <Logo />
+            <nav className="flex items-center gap-1">
+              <button
                 onClick={() => {
-                  setOrcamentoEdit(null); // Garante que a tela venha limpa ao clicar em "Novo Orçamento"
+                  setOrcamentoEdit(null);
                   setPage("novo");
                 }}
-                icon={<FilePlus2 size={17} />}
+                title="Novo Orçamento"
+                className={`rounded-md p-2 ${page === "novo" ? "bg-primary text-white" : "text-text-muted"}`}
               >
-                Novo Orçamento
-              </NavButton>
-              <NavButton
-                active={page === "proposta"}
+                <FilePlus2 size={18} />
+              </button>
+              <button
                 onClick={() => {
-                  setPropostaEdit(null); // Tela limpa ao clicar em "Proposta de Contrato"
+                  setPropostaEdit(null);
                   setPage("proposta");
                 }}
-                icon={<FileText size={17} />}
+                title="Proposta de Contrato"
+                className={`rounded-md p-2 ${page === "proposta" ? "bg-primary text-white" : "text-text-muted"}`}
               >
-                Proposta de Contrato
-              </NavButton>
-              <NavButton
-                active={page === "controle"}
+                <FileText size={18} />
+              </button>
+              <button
                 onClick={() => setPage("controle")}
-                icon={<LayoutList size={17} />}
+                title="Controle"
+                className={`rounded-md p-2 ${page === "controle" ? "bg-primary text-white" : "text-text-muted"}`}
               >
-                Controle
-              </NavButton>
+                <LayoutList size={18} />
+              </button>
               {podeVerCrm && (
-                <NavButton
-                  active={page === "crm"}
+                <button
                   onClick={() => setPage("crm")}
-                  icon={<Users size={17} />}
+                  title="CRM"
+                  className={`rounded-md p-2 ${page === "crm" ? "bg-primary text-white" : "text-text-muted"}`}
                 >
-                  CRM
-                </NavButton>
+                  <Users size={18} />
+                </button>
               )}
               <button
                 onClick={toggleTheme}
                 title="Alternar tema"
-                className="ml-1 rounded-md p-2 text-text-muted transition hover:bg-surface-offset hover:text-text"
+                className="rounded-md p-2 text-text-muted transition hover:bg-surface-offset hover:text-text"
               >
                 {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
               </button>
@@ -171,42 +254,44 @@ function AppShell() {
         </header>
 
         {/* Conteúdo */}
-        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 print:px-0 print:py-0">
-          {page === "novo" ? (
-            <NovoOrcamento orcamentoParaEditar={orcamentoEdit} />
-          ) : page === "proposta" ? (
-            <PropostaContrato propostaParaEditar={propostaEdit} />
-          ) : page === "os" && osOrcamentoId ? (
-            <OrdemServicoPage
-              orcamentoId={osOrcamentoId}
-              onVoltar={() => {
-                setOsOrcamentoId(null);
-                setPage("controle");
-              }}
-            />
-          ) : page === "crm" && podeVerCrm ? (
-            <Crm />
-          ) : (
-            <Controle
-              onEdit={(orc) => {
-                setOrcamentoEdit(orc);
-                setPage("novo");
-              }}
-              onEditProposta={(prop) => {
-                setPropostaEdit(prop);
-                setPage("proposta");
-              }}
-              onAbrirOs={(orcId) => {
-                setOsOrcamentoId(orcId);
-                setPage("os");
-              }}
-            />
-          )}
-        </main>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 print:px-0 print:py-0">
+            {page === "novo" ? (
+              <NovoOrcamento orcamentoParaEditar={orcamentoEdit} />
+            ) : page === "proposta" ? (
+              <PropostaContrato propostaParaEditar={propostaEdit} />
+            ) : page === "os" && osOrcamentoId ? (
+              <OrdemServicoPage
+                orcamentoId={osOrcamentoId}
+                onVoltar={() => {
+                  setOsOrcamentoId(null);
+                  setPage("controle");
+                }}
+              />
+            ) : page === "crm" && podeVerCrm ? (
+              <Crm />
+            ) : (
+              <Controle
+                onEdit={(orc) => {
+                  setOrcamentoEdit(orc);
+                  setPage("novo");
+                }}
+                onEditProposta={(prop) => {
+                  setPropostaEdit(prop);
+                  setPage("proposta");
+                }}
+                onAbrirOs={(orcId) => {
+                  setOsOrcamentoId(orcId);
+                  setPage("os");
+                }}
+              />
+            )}
+          </main>
 
-        <footer className="border-t border-border py-5 text-center text-[12px] text-text-faint print:hidden">
-          Best Medical • Sistema interno de orçamentos
-        </footer>
+          <footer className="border-t border-border py-5 text-center text-[12px] text-text-faint print:hidden">
+            Best Medical • Sistema interno de orçamentos
+          </footer>
+        </div>
       </div>
     </StoreProvider>
   );
