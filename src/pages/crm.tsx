@@ -9,6 +9,7 @@ import {
   Save,
   X,
   Filter,
+  EyeOff,
 } from "lucide-react";
 import { Block, Button } from "../components/ui";
 import { api, API_ENABLED } from "../lib/api";
@@ -136,6 +137,26 @@ function parseCSV(texto: string): Partial<Contato>[] {
 // Opções do filtro da coluna Pessoal.
 type FiltroPessoal = "desmarcados" | "marcados" | "todos";
 
+// Chaves das colunas que podem ser ocultadas (recolhidas).
+type ColunaCrm =
+  | "pessoal"
+  | "nome"
+  | "empresa"
+  | "telefone"
+  | "telefonePessoal"
+  | "email"
+  | "relacionamento";
+
+const COLUNAS_CRM: { key: ColunaCrm; label: string }[] = [
+  { key: "pessoal", label: "Pessoal" },
+  { key: "nome", label: "Nome" },
+  { key: "empresa", label: "Empresa" },
+  { key: "telefone", label: "Telefone" },
+  { key: "telefonePessoal", label: "Telefone Pessoal" },
+  { key: "email", label: "E-mail" },
+  { key: "relacionamento", label: "Relacionamento" },
+];
+
 export function Crm() {
   const [contatos, setContatos] = useState<Contato[]>([]);
   const [carregando, setCarregando] = useState(false);
@@ -155,6 +176,19 @@ export function Crm() {
   const [fRelacionamento, setFRelacionamento] = useState<number | "">("");
   // Por padrão mostra apenas os contatos NÃO pessoais (profissionais).
   const [fPessoal, setFPessoal] = useState<FiltroPessoal>("desmarcados");
+
+  // Colunas recolhidas (clicar no título oculta; clicar na faixa reabre).
+  const [colunasOcultas, setColunasOcultas] = useState<Set<ColunaCrm>>(
+    new Set(),
+  );
+  const oculta = (k: ColunaCrm) => colunasOcultas.has(k);
+  const toggleColuna = (k: ColunaCrm) =>
+    setColunasOcultas((prev) => {
+      const novo = new Set(prev);
+      if (novo.has(k)) novo.delete(k);
+      else novo.add(k);
+      return novo;
+    });
 
   // Carrega TODOS os contatos uma vez; a filtragem é feita no cliente.
   const carregar = useCallback(async () => {
@@ -449,60 +483,105 @@ export function Crm() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1040px] border-collapse text-sm">
               <thead>
-                {/* Títulos */}
+                {/* Títulos (clique no título oculta a coluna) */}
                 <tr className="border-b border-divider text-left text-[12px] uppercase tracking-wide text-text-faint">
-                  <th className="px-2 py-2 text-center font-semibold">Pessoal</th>
-                  <th className="px-2 py-2 font-semibold">Nome</th>
-                  <th className="px-2 py-2 font-semibold">Empresa</th>
-                  <th className="px-2 py-2 font-semibold">Telefone</th>
-                  <th className="px-2 py-2 font-semibold">Telefone Pessoal</th>
-                  <th className="px-2 py-2 font-semibold">E-mail</th>
-                  <th className="px-2 py-2 font-semibold">Relacionamento</th>
-                  <th className="px-2 py-2 text-right font-semibold">Ações</th>
+                  {/* Ações agora à ESQUERDA, antes do checkbox Pessoal */}
+                  <th className="px-2 py-2 text-center font-semibold">Ações</th>
+                  {COLUNAS_CRM.map((col) =>
+                    oculta(col.key) ? (
+                      <ColunaRecolhida
+                        key={col.key}
+                        as="th"
+                        label={col.label}
+                        mostrarLabel
+                        onMostrar={() => toggleColuna(col.key)}
+                      />
+                    ) : (
+                      <ColunaHeader
+                        key={col.key}
+                        label={col.label}
+                        align={col.key === "pessoal" ? "center" : "left"}
+                        onOcultar={() => toggleColuna(col.key)}
+                      />
+                    ),
+                  )}
                 </tr>
                 {/* Linha de filtros */}
                 <tr className="border-b border-divider bg-surface-offset/40">
+                  {/* Célula da coluna Ações (ícone de filtro) */}
                   <th className="px-2 py-2 text-center text-text-faint">
                     <Filter size={13} className="mx-auto" />
                   </th>
-                  <th className="px-1 py-1.5">
-                    <FiltroInput value={fNome} onChange={setFNome} placeholder="Filtrar nome" />
-                  </th>
-                  <th className="px-1 py-1.5">
-                    <FiltroInput value={fEmpresa} onChange={setFEmpresa} placeholder="Filtrar empresa" />
-                  </th>
-                  <th className="px-1 py-1.5">
-                    <FiltroInput value={fTelefone} onChange={setFTelefone} placeholder="Filtrar" />
-                  </th>
-                  <th className="px-1 py-1.5">
-                    <FiltroInput value={fTelefonePessoal} onChange={setFTelefonePessoal} placeholder="Filtrar" />
-                  </th>
-                  <th className="px-1 py-1.5">
-                    <FiltroInput value={fEmail} onChange={setFEmail} placeholder="Filtrar e-mail" />
-                  </th>
-                  <th className="px-1 py-1.5">
-                    <select
-                      value={fRelacionamento}
-                      onChange={(e) =>
-                        setFRelacionamento(e.target.value === "" ? "" : Number(e.target.value))
-                      }
-                      className="w-full cursor-pointer rounded-md border border-border bg-surface px-2 py-1.5 text-[12px] font-normal text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    >
-                      <option value="">Todos</option>
-                      {[1, 2, 3, 4, 5].map((n) => (
-                        <option key={n} value={n}>
-                          {RELACIONAMENTO_LABEL[n]}
-                        </option>
-                      ))}
-                    </select>
-                  </th>
-                  <th className="px-1 py-1.5" />
+                  {/* Pessoal (sem filtro) */}
+                  {oculta("pessoal") ? (
+                    <ColunaRecolhida as="th" label="Pessoal" onMostrar={() => toggleColuna("pessoal")} />
+                  ) : (
+                    <th className="px-2 py-2" />
+                  )}
+                  {oculta("nome") ? (
+                    <ColunaRecolhida as="th" label="Nome" onMostrar={() => toggleColuna("nome")} />
+                  ) : (
+                    <th className="px-1 py-1.5">
+                      <FiltroInput value={fNome} onChange={setFNome} placeholder="Filtrar nome" />
+                    </th>
+                  )}
+                  {oculta("empresa") ? (
+                    <ColunaRecolhida as="th" label="Empresa" onMostrar={() => toggleColuna("empresa")} />
+                  ) : (
+                    <th className="px-1 py-1.5">
+                      <FiltroInput value={fEmpresa} onChange={setFEmpresa} placeholder="Filtrar empresa" />
+                    </th>
+                  )}
+                  {oculta("telefone") ? (
+                    <ColunaRecolhida as="th" label="Telefone" onMostrar={() => toggleColuna("telefone")} />
+                  ) : (
+                    <th className="px-1 py-1.5">
+                      <FiltroInput value={fTelefone} onChange={setFTelefone} placeholder="Filtrar" />
+                    </th>
+                  )}
+                  {oculta("telefonePessoal") ? (
+                    <ColunaRecolhida as="th" label="Telefone Pessoal" onMostrar={() => toggleColuna("telefonePessoal")} />
+                  ) : (
+                    <th className="px-1 py-1.5">
+                      <FiltroInput value={fTelefonePessoal} onChange={setFTelefonePessoal} placeholder="Filtrar" />
+                    </th>
+                  )}
+                  {oculta("email") ? (
+                    <ColunaRecolhida as="th" label="E-mail" onMostrar={() => toggleColuna("email")} />
+                  ) : (
+                    <th className="px-1 py-1.5">
+                      <FiltroInput value={fEmail} onChange={setFEmail} placeholder="Filtrar e-mail" />
+                    </th>
+                  )}
+                  {oculta("relacionamento") ? (
+                    <ColunaRecolhida as="th" label="Relacionamento" onMostrar={() => toggleColuna("relacionamento")} />
+                  ) : (
+                    <th className="px-1 py-1.5">
+                      <select
+                        value={fRelacionamento}
+                        onChange={(e) =>
+                          setFRelacionamento(e.target.value === "" ? "" : Number(e.target.value))
+                        }
+                        className="w-full cursor-pointer rounded-md border border-border bg-surface px-2 py-1.5 text-[12px] font-normal text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      >
+                        <option value="">Todos</option>
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <option key={n} value={n}>
+                            {RELACIONAMENTO_LABEL[n]}
+                          </option>
+                        ))}
+                      </select>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {filtrados.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-sm text-text-muted">
+                    <td
+                      colSpan={COLUNAS_CRM.length + 1}
+                      className="py-8 text-center text-sm text-text-muted"
+                    >
                       Nenhum contato corresponde aos filtros.
                     </td>
                   </tr>
@@ -514,50 +593,16 @@ export function Crm() {
                         key={c.id}
                         className="border-b border-divider/60 align-middle hover:bg-surface-offset/40"
                       >
-                        <td className="px-2 py-1 text-center">
-                          <input
-                            type="checkbox"
-                            checked={c.pessoal}
-                            onChange={(e) => alternarPessoal(c.id, e.target.checked)}
-                            title="Marcar como contato pessoal"
-                            className="h-4 w-4 cursor-pointer accent-primary"
-                          />
-                        </td>
-                        <td className="px-1 py-1">
-                          <CelulaInput value={c.nome} onChange={(v) => editarCampo(c.id, "nome", v)} />
-                        </td>
-                        <td className="px-1 py-1">
-                          <CelulaInput value={c.empresa || ""} onChange={(v) => editarCampo(c.id, "empresa", v)} />
-                        </td>
-                        <td className="px-1 py-1">
-                          <CelulaInput value={c.telefone || ""} onChange={(v) => editarCampo(c.id, "telefone", v)} />
-                        </td>
-                        <td className="px-1 py-1">
-                          <CelulaInput
-                            value={c.telefonePessoal || ""}
-                            onChange={(v) => editarCampo(c.id, "telefonePessoal", v)}
-                          />
-                        </td>
-                        <td className="px-1 py-1">
-                          <CelulaInput type="email" value={c.email || ""} onChange={(v) => editarCampo(c.id, "email", v)} />
-                        </td>
-                        <td className="px-1 py-1">
-                          <select
-                            value={c.relacionamento}
-                            onChange={(e) => editarCampo(c.id, "relacionamento", Number(e.target.value))}
-                            className={`w-full cursor-pointer rounded-md border px-2 py-1.5 text-[13px] font-medium outline-none transition focus:ring-2 focus:ring-primary/20 ${corRelacionamento(
-                              c.relacionamento,
-                            )}`}
-                          >
-                            {[1, 2, 3, 4, 5].map((n) => (
-                              <option key={n} value={n}>
-                                {RELACIONAMENTO_LABEL[n]}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-1 py-1">
-                          <div className="flex items-center justify-end gap-1">
+                        {/* Ações à ESQUERDA: Excluir sempre; Salvar quando houver alteração */}
+                        <td className="px-2 py-1">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              title="Excluir contato"
+                              onClick={() => remover(c.id)}
+                              className="rounded-md p-1.5 text-text-muted transition hover:bg-danger/10 hover:text-danger"
+                            >
+                              <Trash2 size={16} />
+                            </button>
                             {sujo && (
                               <button
                                 title="Salvar"
@@ -572,15 +617,85 @@ export function Crm() {
                                 )}
                               </button>
                             )}
-                            <button
-                              title="Remover"
-                              onClick={() => remover(c.id)}
-                              className="rounded-md p-1.5 text-text-muted transition hover:bg-danger/10 hover:text-danger"
-                            >
-                              <Trash2 size={16} />
-                            </button>
                           </div>
                         </td>
+                        {/* Pessoal */}
+                        {oculta("pessoal") ? (
+                          <ColunaRecolhida label="Pessoal" onMostrar={() => toggleColuna("pessoal")} />
+                        ) : (
+                          <td className="px-2 py-1 text-center">
+                            <input
+                              type="checkbox"
+                              checked={c.pessoal}
+                              onChange={(e) => alternarPessoal(c.id, e.target.checked)}
+                              title="Marcar como contato pessoal"
+                              className="h-4 w-4 cursor-pointer accent-primary"
+                            />
+                          </td>
+                        )}
+                        {/* Nome */}
+                        {oculta("nome") ? (
+                          <ColunaRecolhida label="Nome" onMostrar={() => toggleColuna("nome")} />
+                        ) : (
+                          <td className="px-1 py-1">
+                            <CelulaInput value={c.nome} onChange={(v) => editarCampo(c.id, "nome", v)} />
+                          </td>
+                        )}
+                        {/* Empresa */}
+                        {oculta("empresa") ? (
+                          <ColunaRecolhida label="Empresa" onMostrar={() => toggleColuna("empresa")} />
+                        ) : (
+                          <td className="px-1 py-1">
+                            <CelulaInput value={c.empresa || ""} onChange={(v) => editarCampo(c.id, "empresa", v)} />
+                          </td>
+                        )}
+                        {/* Telefone */}
+                        {oculta("telefone") ? (
+                          <ColunaRecolhida label="Telefone" onMostrar={() => toggleColuna("telefone")} />
+                        ) : (
+                          <td className="px-1 py-1">
+                            <CelulaInput value={c.telefone || ""} onChange={(v) => editarCampo(c.id, "telefone", v)} />
+                          </td>
+                        )}
+                        {/* Telefone Pessoal */}
+                        {oculta("telefonePessoal") ? (
+                          <ColunaRecolhida label="Telefone Pessoal" onMostrar={() => toggleColuna("telefonePessoal")} />
+                        ) : (
+                          <td className="px-1 py-1">
+                            <CelulaInput
+                              value={c.telefonePessoal || ""}
+                              onChange={(v) => editarCampo(c.id, "telefonePessoal", v)}
+                            />
+                          </td>
+                        )}
+                        {/* E-mail */}
+                        {oculta("email") ? (
+                          <ColunaRecolhida label="E-mail" onMostrar={() => toggleColuna("email")} />
+                        ) : (
+                          <td className="px-1 py-1">
+                            <CelulaInput type="email" value={c.email || ""} onChange={(v) => editarCampo(c.id, "email", v)} />
+                          </td>
+                        )}
+                        {/* Relacionamento */}
+                        {oculta("relacionamento") ? (
+                          <ColunaRecolhida label="Relacionamento" onMostrar={() => toggleColuna("relacionamento")} />
+                        ) : (
+                          <td className="px-1 py-1">
+                            <select
+                              value={c.relacionamento}
+                              onChange={(e) => editarCampo(c.id, "relacionamento", Number(e.target.value))}
+                              className={`w-full cursor-pointer rounded-md border px-2 py-1.5 text-[13px] font-medium outline-none transition focus:ring-2 focus:ring-primary/20 ${corRelacionamento(
+                                c.relacionamento,
+                              )}`}
+                            >
+                              {[1, 2, 3, 4, 5].map((n) => (
+                                <option key={n} value={n}>
+                                  {RELACIONAMENTO_LABEL[n]}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                        )}
                       </tr>
                     );
                   })
@@ -612,6 +727,70 @@ function semId(c: Contato) {
     relacionamento: c.relacionamento,
     pessoal: c.pessoal,
   };
+}
+
+// Cabeçalho de coluna clicável: clicar no título recolhe a coluna.
+function ColunaHeader({
+  label,
+  onOcultar,
+  align = "left",
+}: {
+  label: string;
+  onOcultar: () => void;
+  align?: "left" | "center";
+}) {
+  return (
+    <th className="px-2 py-2 font-semibold">
+      <button
+        type="button"
+        onClick={onOcultar}
+        title="Clique para ocultar esta coluna"
+        className={`group inline-flex w-full items-center gap-1 ${
+          align === "center" ? "justify-center" : "justify-start"
+        } cursor-pointer text-[12px] uppercase tracking-wide text-text-faint transition hover:text-text`}
+      >
+        <span>{label}</span>
+        <EyeOff
+          size={12}
+          className="opacity-0 transition group-hover:opacity-70"
+        />
+      </button>
+    </th>
+  );
+}
+
+// Faixa estreita de uma coluna recolhida: clicar reabre a coluna.
+// `as`: 'th' no cabeçalho, 'td' nas linhas.
+function ColunaRecolhida({
+  label,
+  onMostrar,
+  as = "td",
+  mostrarLabel = false,
+}: {
+  label: string;
+  onMostrar: () => void;
+  as?: "th" | "td";
+  mostrarLabel?: boolean;
+}) {
+  const Tag = as as any;
+  return (
+    <Tag
+      onClick={onMostrar}
+      title={`Mostrar coluna "${label}"`}
+      className="w-7 min-w-7 max-w-7 cursor-pointer border-l border-divider/60 bg-surface-offset/40 p-0 text-center align-middle transition hover:bg-primary-soft"
+    >
+      {mostrarLabel ? (
+        <span
+          className="mx-auto block whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-text-faint"
+          style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
+        >
+          {label}
+        </span>
+      ) : (
+        <span className="text-text-faint">·</span>
+      )}
+    </Tag>
+  );
 }
 
 // Campo de filtro compacto (cabeçalho da tabela).
