@@ -14,7 +14,7 @@ Error generating stack: `+e.message+`
 
 PEÇAS E REPAROS
 • Dispomos de laboratório de reparo e estoque de peças próprios. O cliente é livre para realizar reparos ou comprar peças com outras empresas.
-• Reparo de peças possui valores e prioridade diferenciados para contratos. Peças têm condições especiais para clientes contratados.
+• Reparo ou Fornecimento de Peças possuem condições diferenciadas e fluxo prioritário para clientes em contrato.
 
 DESPESAS
 • Inclusas no contrato: deslocamento terrestre, alimentação e hospedagem.
