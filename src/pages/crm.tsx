@@ -10,6 +10,7 @@ import {
   X,
   Filter,
   EyeOff,
+  AlertTriangle,
 } from "lucide-react";
 import { Block, Button } from "../components/ui";
 import { api, API_ENABLED } from "../lib/api";
@@ -165,6 +166,9 @@ export function Crm() {
   const [aviso, setAviso] = useState<string | null>(null);
   const [editados, setEditados] = useState<Record<string, Contato>>({});
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
+  // Modal de dupla checagem para apagar TODO o CRM.
+  const [confirmarApagarTudo, setConfirmarApagarTudo] = useState(false);
+  const [apagandoTudo, setApagandoTudo] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // ===== Filtros por coluna =====
@@ -337,6 +341,24 @@ export function Crm() {
     }
   };
 
+  // Apaga TODO o CRM (chamado pelo modal de dupla checagem ao confirmar "Sim").
+  const apagarTudo = async () => {
+    setErro(null);
+    setAviso(null);
+    setApagandoTudo(true);
+    try {
+      const r = await api.removerTodosContatosCrm();
+      setContatos([]);
+      setEditados({});
+      setConfirmarApagarTudo(false);
+      setAviso(`CRM apagado: ${r.removidos} contato(s) removido(s).`);
+    } catch (e: any) {
+      setErro(e?.message || "Falha ao apagar o CRM.");
+    } finally {
+      setApagandoTudo(false);
+    }
+  };
+
   const aoEscolherArquivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = ""; // permite reimportar o mesmo arquivo
@@ -423,6 +445,15 @@ export function Crm() {
           </Button>
           <Button icon={<Plus size={16} />} onClick={adicionar} disabled={!API_ENABLED}>
             Adicionar
+          </Button>
+          <Button
+            variant="outline"
+            icon={<Trash2 size={16} />}
+            onClick={() => setConfirmarApagarTudo(true)}
+            disabled={!API_ENABLED || contatos.length === 0}
+            className="border-danger/40 text-danger hover:border-danger hover:bg-danger/10 hover:text-danger"
+          >
+            Apagar tudo
           </Button>
         </div>
       </div>
@@ -712,6 +743,58 @@ export function Crm() {
           </div>
         )}
       </Block>
+
+      {/* Modal de dupla checagem para apagar TODO o CRM */}
+      {confirmarApagarTudo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !apagandoTudo && setConfirmarApagarTudo(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-danger/10 text-danger">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <h3 className="text-[16px] font-semibold text-text">
+                  Apagar todo o CRM?
+                </h3>
+                <p className="mt-1 text-[13px] text-text-muted">
+                  Esta ação vai remover <strong>todos os {contatos.length}{" "}
+                  contato(s)</strong> importados do CRM. Não é possível desfazer.
+                  Tem certeza?
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setConfirmarApagarTudo(false)}
+                disabled={apagandoTudo}
+              >
+                Não
+              </Button>
+              <Button
+                onClick={apagarTudo}
+                disabled={apagandoTudo}
+                icon={
+                  apagandoTudo ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Trash2 size={16} />
+                  )
+                }
+                className="bg-danger text-white hover:bg-danger/90 active:bg-danger/80"
+              >
+                {apagandoTudo ? "Apagando..." : "Sim, apagar tudo"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

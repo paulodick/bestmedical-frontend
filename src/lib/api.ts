@@ -236,6 +236,10 @@ export const api = {
     req<any>(`/crm/contatos/${id}`, { method: "PUT", body: JSON.stringify(c) }),
   removerContatoCrm: (id: string) =>
     req<void>(`/crm/contatos/${id}`, { method: "DELETE" }),
+  removerTodosContatosCrm: () =>
+    req<{ ok: boolean; removidos: number }>("/crm/contatos", {
+      method: "DELETE",
+    }),
   importarContatosCrm: (payload: { vcard?: string; contatos?: any[] }) =>
     req<{ importados: number; ignorados: number; total: number }>(
       "/crm/contatos/importar",
