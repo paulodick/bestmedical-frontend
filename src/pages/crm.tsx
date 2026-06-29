@@ -149,8 +149,8 @@ type ColunaCrm =
 
 const COLUNAS_CRM: { key: ColunaCrm; label: string }[] = [
   { key: "pessoal", label: "Pessoal" },
-  { key: "nome", label: "Nome" },
   { key: "empresa", label: "Empresa" },
+  { key: "nome", label: "Nome" },
   { key: "telefone", label: "Telefone" },
   { key: "telefonePessoal", label: "Telefone Pessoal" },
   { key: "email", label: "E-mail" },
@@ -518,18 +518,18 @@ export function Crm() {
                   ) : (
                     <th className="px-2 py-2" />
                   )}
-                  {oculta("nome") ? (
-                    <ColunaRecolhida as="th" label="Nome" onMostrar={() => toggleColuna("nome")} />
-                  ) : (
-                    <th className="px-1 py-1.5">
-                      <FiltroInput value={fNome} onChange={setFNome} placeholder="Filtrar nome" />
-                    </th>
-                  )}
                   {oculta("empresa") ? (
                     <ColunaRecolhida as="th" label="Empresa" onMostrar={() => toggleColuna("empresa")} />
                   ) : (
                     <th className="px-1 py-1.5">
                       <FiltroInput value={fEmpresa} onChange={setFEmpresa} placeholder="Filtrar empresa" />
+                    </th>
+                  )}
+                  {oculta("nome") ? (
+                    <ColunaRecolhida as="th" label="Nome" onMostrar={() => toggleColuna("nome")} />
+                  ) : (
+                    <th className="px-1 py-1.5">
+                      <FiltroInput value={fNome} onChange={setFNome} placeholder="Filtrar nome" />
                     </th>
                   )}
                   {oculta("telefone") ? (
@@ -633,20 +633,20 @@ export function Crm() {
                             />
                           </td>
                         )}
-                        {/* Nome */}
-                        {oculta("nome") ? (
-                          <ColunaRecolhida label="Nome" onMostrar={() => toggleColuna("nome")} />
-                        ) : (
-                          <td className="px-1 py-1">
-                            <CelulaInput value={c.nome} onChange={(v) => editarCampo(c.id, "nome", v)} />
-                          </td>
-                        )}
                         {/* Empresa */}
                         {oculta("empresa") ? (
                           <ColunaRecolhida label="Empresa" onMostrar={() => toggleColuna("empresa")} />
                         ) : (
                           <td className="px-1 py-1">
                             <CelulaInput value={c.empresa || ""} onChange={(v) => editarCampo(c.id, "empresa", v)} />
+                          </td>
+                        )}
+                        {/* Nome */}
+                        {oculta("nome") ? (
+                          <ColunaRecolhida label="Nome" onMostrar={() => toggleColuna("nome")} />
+                        ) : (
+                          <td className="px-1 py-1">
+                            <CelulaInput value={c.nome} onChange={(v) => editarCampo(c.id, "nome", v)} />
                           </td>
                         )}
                         {/* Telefone */}
