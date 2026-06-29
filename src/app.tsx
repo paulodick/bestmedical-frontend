@@ -1,17 +1,18 @@
 import { useEffect, useState } from "react";
-import { FilePlus2, LayoutList, Moon, Sun, LogOut, Loader2, Users } from "lucide-react";
+import { FilePlus2, LayoutList, Moon, Sun, LogOut, Loader2, Users, FileText } from "lucide-react";
 import { StoreProvider } from "./store";
 import { NovoOrcamento } from "./pages/novoorcamento";
 import { Controle } from "./pages/controle";
 import { Crm } from "./pages/crm";
 import { OrdemServicoPage } from "./pages/ordemservico";
+import { PropostaContrato } from "./pages/propostacontrato";
 import { Login } from "./pages/Login";
 import { AuthProvider, useAuth } from "./auth";
 import { API_ENABLED } from "./lib/api";
 import logoSymbol from "./assets/logo-symbol.png";
-import type { Orcamento } from "./types";
+import type { Orcamento, Proposta } from "./types";
 
-type Page = "novo" | "controle" | "crm" | "os";
+type Page = "novo" | "controle" | "crm" | "os" | "proposta";
 
 function Logo() {
   return (
@@ -73,6 +74,7 @@ function AppShell() {
   });
   const [page, setPage] = useState<Page>("controle");
   const [orcamentoEdit, setOrcamentoEdit] = useState<Orcamento | null>(null);
+  const [propostaEdit, setPropostaEdit] = useState<Proposta | null>(null);
   // Id do orçamento cuja OS deve ser aberta
   const [osOrcamentoId, setOsOrcamentoId] = useState<string | null>(null);
   const { logout, user } = useAuth();
@@ -123,6 +125,16 @@ function AppShell() {
                 Novo Orçamento
               </NavButton>
               <NavButton
+                active={page === "proposta"}
+                onClick={() => {
+                  setPropostaEdit(null); // Tela limpa ao clicar em "Proposta de Contrato"
+                  setPage("proposta");
+                }}
+                icon={<FileText size={17} />}
+              >
+                Proposta de Contrato
+              </NavButton>
+              <NavButton
                 active={page === "controle"}
                 onClick={() => setPage("controle")}
                 icon={<LayoutList size={17} />}
@@ -162,6 +174,8 @@ function AppShell() {
         <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 print:px-0 print:py-0">
           {page === "novo" ? (
             <NovoOrcamento orcamentoParaEditar={orcamentoEdit} />
+          ) : page === "proposta" ? (
+            <PropostaContrato propostaParaEditar={propostaEdit} />
           ) : page === "os" && osOrcamentoId ? (
             <OrdemServicoPage
               orcamentoId={osOrcamentoId}
@@ -177,6 +191,10 @@ function AppShell() {
               onEdit={(orc) => {
                 setOrcamentoEdit(orc);
                 setPage("novo");
+              }}
+              onEditProposta={(prop) => {
+                setPropostaEdit(prop);
+                setPage("proposta");
               }}
               onAbrirOs={(orcId) => {
                 setOsOrcamentoId(orcId);

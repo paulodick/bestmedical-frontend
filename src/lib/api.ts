@@ -130,6 +130,58 @@ export const api = {
       email: string;
     } | null>(`/clientes/por-cnpj?cnpj=${encodeURIComponent(cnpj.trim())}`),
 
+  // ===== Propostas de Contrato =====
+  listarPropostas: (query = "") =>
+    req<ListaResposta<any>>(`/propostas${query}`),
+  proximoNumeroProposta: () =>
+    req<{ numero: string }>("/propostas/proximo-numero"),
+  criarProposta: (p: any) =>
+    req<any>("/propostas", { method: "POST", body: JSON.stringify(p) }),
+  atualizarProposta: (id: string, p: any) =>
+    req<any>(`/propostas/${id}`, { method: "PUT", body: JSON.stringify(p) }),
+  atualizarStatusProposta: (id: string, patch: any) =>
+    req<any>(`/propostas/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+  removerProposta: (id: string) =>
+    req<void>(`/propostas/${id}`, { method: "DELETE" }),
+  // Busca uma proposta pelo número exato (PC-2026-0001). Lança 404 se não existe.
+  buscarPropostaPorNumero: (numero: string) =>
+    req<any>(`/propostas/por-numero/${encodeURIComponent(numero.trim())}`),
+  // Envia a proposta por e-mail ao solicitante (com cópia de controle)
+  enviarProposta: (id: string) =>
+    req<{ ok: boolean; mensagem: string; proposta?: any }>(
+      `/propostas/${id}/enviar`,
+      { method: "POST" },
+    ),
+  // Abre o PDF da proposta gerado pelo servidor numa nova aba (igual abrirPdf)
+  abrirPdfProposta: async (id: string) => {
+    const res = await fetch(`${BASE}/propostas/${id}/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      let msg = `Erro ${res.status} ao gerar o PDF da proposta`;
+      try {
+        const body = await res.json();
+        msg = body?.message ? String(body.message) : msg;
+      } catch {
+        /* corpo não-JSON */
+      }
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    if (!win) {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `proposta-${id}.pdf`;
+      a.click();
+    }
+  },
+
   // ===== CRM (agenda de contatos) =====
   listarContatosCrm: (query = "") =>
     req<ListaResposta<any>>(`/crm/contatos${query}`),

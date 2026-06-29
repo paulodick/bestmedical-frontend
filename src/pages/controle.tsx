@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, Eye, X, FileDown, Loader2, FileText } from "lucide-react";
 import { useStore } from "../store";
-import type { Orcamento } from "../types";
+import type { Orcamento, Proposta } from "../types";
 import { STATUS_FIELDS } from "../types";
 import { Modal } from "../components/Modal";
 import { OrcamentoPreview } from "../components/OrcamentoPreview";
@@ -10,33 +10,79 @@ import { formatBRL, formatDataBR } from "../lib/format";
 import { totalFinal } from "../lib/calc";
 import { api, API_ENABLED } from "../lib/api";
 
-// Interface do componente: aceita onEdit e onAbrirOs
+// Interface do componente: aceita onEdit (orçamento), onEditProposta e onAbrirOs
 interface ControleProps {
   onEdit?: (orcamento: Orcamento) => void;
+  // Clique no número de uma proposta (PC-...) abre a tela em modo edição
+  onEditProposta?: (proposta: Proposta) => void;
   // Callback chamado ao clicar no ícone de OS (só aparece quando aprovado)
   onAbrirOs?: (orcamentoId: string) => void;
 }
 
-export function Controle({ onEdit, onAbrirOs }: ControleProps = {}) {
+// Registro unificado exibido na tabela de Controle.
+// Carrega o objeto original (orçamento ou proposta) para as ações por tipo.
+type TipoRegistro = "orcamento" | "proposta";
+interface Registro {
+  tipoRegistro: TipoRegistro;
+  id: string;
+  numero: string;
+  data: string;
+  empresa: string;
+  cnpj: string;
+  total: number;
+  orcamento?: Orcamento;
+  proposta?: Proposta;
+}
+
+// Lê um status booleano de controle a partir do objeto subjacente.
+function statusOn(r: Registro, key: string): boolean {
+  const fonte =
+    r.tipoRegistro === "orcamento"
+      ? (r.orcamento as unknown as Record<string, unknown>)
+      : (r.proposta as unknown as Record<string, unknown>);
+  return !!fonte?.[key];
+}
+
+export function Controle({ onEdit, onEditProposta, onAbrirOs }: ControleProps = {}) {
   const { orcamentos, atualizar } = useStore();
 
+  // Propostas são carregadas localmente (no modo mock ficam vazias).
+  const [propostas, setPropostas] = useState<Proposta[]>([]);
+
+  const [fTipo, setFTipo] = useState<"" | TipoRegistro>("");
   const [busca, setBusca] = useState("");
   const [fEmpresa, setFEmpresa] = useState("");
   const [fCnpj, setFCnpj] = useState("");
   const [fData, setFData] = useState("");
   const [fStatus, setFStatus] = useState<string>("");
   const [preview, setPreview] = useState<Orcamento | null>(null);
-  // ID do orçamento cujo PDF está sendo gerado (para mostrar o spinner).
+  // ID do registro cujo PDF está sendo gerado (para mostrar o spinner).
   const [pdfCarregando, setPdfCarregando] = useState<string | null>(null);
   const [pdfErro, setPdfErro] = useState<string | null>(null);
 
-  // Abre o PDF gerado pelo servidor. Disponível quando conectado à API.
-  const handlePdf = async (o: Orcamento) => {
-    if (!o.id) return;
+  // Carrega as propostas da API (mesma cadência da lista de orçamentos).
+  useEffect(() => {
+    if (!API_ENABLED) return;
+    let ativo = true;
+    api
+      .listarPropostas("?order=data_desc&pageSize=100")
+      .then((r) => {
+        if (ativo) setPropostas(r.data as Proposta[]);
+      })
+      .catch((e) => console.error("Falha ao carregar propostas:", e));
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  // Abre o PDF gerado pelo servidor (rota por tipo). Disponível com API.
+  const handlePdf = async (r: Registro) => {
+    if (!r.id) return;
     setPdfErro(null);
-    setPdfCarregando(o.id);
+    setPdfCarregando(r.id);
     try {
-      await api.abrirPdf(o.id);
+      if (r.tipoRegistro === "proposta") await api.abrirPdfProposta(r.id);
+      else await api.abrirPdf(r.id);
     } catch (e) {
       setPdfErro(e instanceof Error ? e.message : "Não foi possível gerar o PDF.");
     } finally {
@@ -44,37 +90,107 @@ export function Controle({ onEdit, onAbrirOs }: ControleProps = {}) {
     }
   };
 
+  // Alterna um status: orçamento via store; proposta via API + otimista local.
+  const toggleStatus = (r: Registro, key: string) => {
+    const novo = !statusOn(r, key);
+    if (r.tipoRegistro === "orcamento") {
+      atualizar(r.id, { [key]: novo });
+      return;
+    }
+    setPropostas((prev) =>
+      prev.map((p) => (p.id === r.id ? { ...p, [key]: novo } : p)),
+    );
+    if (API_ENABLED) {
+      api
+        .atualizarStatusProposta(r.id, { [key]: novo })
+        .catch((e) => console.error("Falha ao atualizar status da proposta:", e));
+    }
+  };
+
+  // Une orçamentos e propostas num único conjunto de registros.
+  const registros = useMemo<Registro[]>(() => {
+    const dosOrcamentos: Registro[] = orcamentos.map((o) => ({
+      tipoRegistro: "orcamento",
+      id: o.id,
+      numero: o.numero,
+      data: o.data,
+      empresa: o.empresa,
+      cnpj: o.cnpj,
+      total: totalFinal(o),
+      orcamento: o,
+    }));
+    const dasPropostas: Registro[] = propostas.map((p) => ({
+      tipoRegistro: "proposta",
+      id: p.id,
+      numero: p.numero,
+      data: p.data,
+      empresa: p.empresa,
+      cnpj: p.cnpj,
+      total: p.total,
+      proposta: p,
+    }));
+    return [...dosOrcamentos, ...dasPropostas];
+  }, [orcamentos, propostas]);
+
+  // Base após o filtro de tipo (alimenta os selects de empresa/CNPJ).
+  const base = useMemo(
+    () => (fTipo ? registros.filter((r) => r.tipoRegistro === fTipo) : registros),
+    [registros, fTipo],
+  );
+
   const empresas = useMemo(
-    () => [...new Set(orcamentos.map((o) => o.empresa).filter(Boolean))].sort(),
-    [orcamentos]
+    () => [...new Set(base.map((r) => r.empresa).filter(Boolean))].sort(),
+    [base],
   );
   const cnpjs = useMemo(
-    () => [...new Set(orcamentos.map((o) => o.cnpj).filter(Boolean))].sort(),
-    [orcamentos]
+    () => [...new Set(base.map((r) => r.cnpj).filter(Boolean))].sort(),
+    [base],
   );
 
   const filtrados = useMemo(() => {
-    return orcamentos
-      .filter((o) => {
-        if (fEmpresa && o.empresa !== fEmpresa) return false;
-        if (fCnpj && o.cnpj !== fCnpj) return false;
-        if (fData && o.data !== fData) return false;
-        if (fStatus && !o[fStatus as keyof Orcamento]) return false;
+    return base
+      .filter((r) => {
+        if (fEmpresa && r.empresa !== fEmpresa) return false;
+        if (fCnpj && r.cnpj !== fCnpj) return false;
+        if (fData && r.data !== fData) return false;
+        if (fStatus && !statusOn(r, fStatus)) return false;
         if (busca) {
           const q = busca.toLowerCase();
           return (
-            o.numero.toLowerCase().includes(q) ||
-            o.empresa.toLowerCase().includes(q) ||
-            o.cnpj.includes(q)
+            r.numero.toLowerCase().includes(q) ||
+            r.empresa.toLowerCase().includes(q) ||
+            r.cnpj.includes(q)
           );
         }
         return true;
       })
       .sort((a, b) => b.numero.localeCompare(a.numero));
-  }, [orcamentos, busca, fEmpresa, fCnpj, fData, fStatus]);
+  }, [base, busca, fEmpresa, fCnpj, fData, fStatus]);
+
+  const temFiltro = !!(fTipo || busca || fEmpresa || fCnpj || fData || fStatus);
 
   return (
     <div className="space-y-4">
+      {/* Filtro de tipo (topo) — determina o conjunto exibido */}
+      <div className="flex flex-col gap-1 sm:max-w-xs">
+        <label className="text-[11px] font-medium text-text-faint">
+          Tipo de Proposta
+        </label>
+        <Select
+          value={fTipo}
+          onChange={(e) => {
+            setFTipo(e.target.value as "" | TipoRegistro);
+            // Limpa filtros dependentes que podem não existir no novo conjunto
+            setFEmpresa("");
+            setFCnpj("");
+          }}
+        >
+          <option value="">Todos</option>
+          <option value="orcamento">Orçamentos</option>
+          <option value="proposta">Propostas de Contrato</option>
+        </Select>
+      </div>
+
       {/* Filtros */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className="flex-1">
@@ -116,10 +232,11 @@ export function Controle({ onEdit, onAbrirOs }: ControleProps = {}) {
               </option>
             ))}
           </Select>
-          {(busca || fEmpresa || fCnpj || fData || fStatus) && (
+          {temFiltro && (
             <Button
               variant="secondary"
               onClick={() => {
+                setFTipo("");
                 setBusca("");
                 setFEmpresa("");
                 setFCnpj("");
@@ -152,95 +269,116 @@ export function Controle({ onEdit, onAbrirOs }: ControleProps = {}) {
             {filtrados.length === 0 ? (
               <tr>
                 <td colSpan={6} className="p-8 text-center text-slate-500">
-                  Nenhum orçamento encontrado.
+                  Nenhum registro encontrado.
                 </td>
               </tr>
             ) : (
-              filtrados.map((o) => (
-                <tr
-                  key={o.id}
-                  className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50"
-                >
-                  <td className="px-3 py-2.5 font-medium text-slate-900">
-                    {/* AQUI: Tornamos o número clicável */}
-                    {onEdit ? (
-                      <span 
-                        onClick={() => onEdit(o)} 
-                        className="cursor-pointer hover:underline text-blue-600 transition-colors"
-                        title="Clique para editar este orçamento"
-                      >
-                        {o.numero}
-                      </span>
-                    ) : (
-                      o.numero
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 text-slate-500">
-                    {formatDataBR(o.data)}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="truncate font-medium text-slate-900">
-                      {o.empresa || "—"}
-                    </div>
-                    <div className="text-[11px] text-slate-500">
-                      {o.cnpj || "—"}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5 font-medium text-slate-900">
-                    {formatBRL(totalFinal(o))}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex flex-wrap gap-1">
-                      {STATUS_FIELDS.map((s) => (
-                        <StatusPill
-                          key={s.key}
-                          on={!!o[s.key as keyof Orcamento]}
-                          label={s.label}
-                          onClick={() =>
-                            atualizar(o.id, { [s.key]: !o[s.key as keyof Orcamento] })
+              filtrados.map((r) => {
+                const abrirEdicao =
+                  r.tipoRegistro === "proposta"
+                    ? onEditProposta
+                      ? () => onEditProposta(r.proposta as Proposta)
+                      : undefined
+                    : onEdit
+                      ? () => onEdit(r.orcamento as Orcamento)
+                      : undefined;
+                return (
+                  <tr
+                    key={`${r.tipoRegistro}-${r.id}`}
+                    className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50"
+                  >
+                    <td className="px-3 py-2.5 font-medium text-slate-900">
+                      {abrirEdicao ? (
+                        <span
+                          onClick={abrirEdicao}
+                          className="cursor-pointer hover:underline text-blue-600 transition-colors"
+                          title={
+                            r.tipoRegistro === "proposta"
+                              ? "Clique para editar esta proposta"
+                              : "Clique para editar este orçamento"
                           }
-                          interactive
-                        />
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5 text-center">
-                    <div className="inline-flex items-center justify-center gap-1">
-                      <button
-                        onClick={() => setPreview(o)}
-                        title="Visualizar orçamento"
-                        className="inline-flex items-center justify-center rounded-md p-1.5 text-text-muted transition hover:bg-primary-soft hover:text-primary"
-                      >
-                        <Eye size={16} />
-                      </button>
-                      {API_ENABLED && (
-                        <button
-                          onClick={() => handlePdf(o)}
-                          disabled={pdfCarregando === o.id}
-                          title="Baixar / abrir PDF do orçamento"
-                          className="inline-flex items-center justify-center rounded-md p-1.5 text-text-muted transition hover:bg-primary-soft hover:text-primary disabled:opacity-50"
                         >
-                          {pdfCarregando === o.id ? (
-                            <Loader2 size={16} className="animate-spin" />
-                          ) : (
-                            <FileDown size={16} />
+                          {r.numero}
+                        </span>
+                      ) : (
+                        r.numero
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-slate-500">
+                      {formatDataBR(r.data)}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="truncate font-medium text-slate-900">
+                        {r.empresa || "—"}
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        {r.cnpj || "—"}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 font-medium text-slate-900">
+                      {formatBRL(r.total)}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex flex-wrap gap-1">
+                        {STATUS_FIELDS.map((s) => (
+                          <StatusPill
+                            key={s.key}
+                            on={statusOn(r, s.key as string)}
+                            label={s.label}
+                            onClick={() => toggleStatus(r, s.key as string)}
+                            interactive
+                          />
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <div className="inline-flex items-center justify-center gap-1">
+                        <button
+                          onClick={() =>
+                            r.tipoRegistro === "proposta"
+                              ? handlePdf(r)
+                              : setPreview(r.orcamento as Orcamento)
+                          }
+                          title={
+                            r.tipoRegistro === "proposta"
+                              ? "Visualizar proposta (PDF)"
+                              : "Visualizar orçamento"
+                          }
+                          className="inline-flex items-center justify-center rounded-md p-1.5 text-text-muted transition hover:bg-primary-soft hover:text-primary"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        {API_ENABLED && (
+                          <button
+                            onClick={() => handlePdf(r)}
+                            disabled={pdfCarregando === r.id}
+                            title="Baixar / abrir PDF"
+                            className="inline-flex items-center justify-center rounded-md p-1.5 text-text-muted transition hover:bg-primary-soft hover:text-primary disabled:opacity-50"
+                          >
+                            {pdfCarregando === r.id ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <FileDown size={16} />
+                            )}
+                          </button>
+                        )}
+                        {/* Ícone de OS — só para orçamentos aprovados */}
+                        {r.tipoRegistro === "orcamento" &&
+                          r.orcamento?.aprovado &&
+                          onAbrirOs && (
+                            <button
+                              onClick={() => onAbrirOs(r.id)}
+                              title="Abrir Ordem de Serviço"
+                              className="inline-flex items-center justify-center rounded-md p-1.5 text-text-muted transition hover:bg-success-soft hover:text-success"
+                            >
+                              <FileText size={16} />
+                            </button>
                           )}
-                        </button>
-                      )}
-                      {/* Ícone de OS — só aparece quando o orçamento está aprovado */}
-                      {o.aprovado && onAbrirOs && (
-                        <button
-                          onClick={() => onAbrirOs(o.id)}
-                          title="Abrir Ordem de Serviço"
-                          className="inline-flex items-center justify-center rounded-md p-1.5 text-text-muted transition hover:bg-success-soft hover:text-success"
-                        >
-                          <FileText size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -274,7 +412,19 @@ export function Controle({ onEdit, onAbrirOs }: ControleProps = {}) {
                     <FileDown size={16} />
                   )
                 }
-                onClick={() => preview && handlePdf(preview)}
+                onClick={() =>
+                  preview &&
+                  handlePdf({
+                    tipoRegistro: "orcamento",
+                    id: preview.id,
+                    numero: preview.numero,
+                    data: preview.data,
+                    empresa: preview.empresa,
+                    cnpj: preview.cnpj,
+                    total: totalFinal(preview),
+                    orcamento: preview,
+                  })
+                }
                 disabled={pdfCarregando === preview.id}
               >
                 {pdfCarregando === preview.id ? "Gerando…" : "Baixar PDF"}
