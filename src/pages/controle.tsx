@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Eye, X, FileDown, Loader2, FileText } from "lucide-react";
+import { Search, Eye, X, FileDown, Loader2, FileText, FileSignature } from "lucide-react";
 import { useStore } from "../store";
 import type { Orcamento, Proposta } from "../types";
 import { STATUS_FIELDS } from "../types";
@@ -17,6 +17,8 @@ interface ControleProps {
   onEditProposta?: (proposta: Proposta) => void;
   // Callback chamado ao clicar no ícone de OS (só aparece quando aprovado)
   onAbrirOs?: (orcamentoId: string) => void;
+  // Callback ao clicar no ícone de Contrato (só aparece em propostas aprovadas)
+  onAbrirContrato?: (propostaId: string) => void;
 }
 
 // Registro unificado exibido na tabela de Controle.
@@ -43,7 +45,7 @@ function statusOn(r: Registro, key: string): boolean {
   return !!fonte?.[key];
 }
 
-export function Controle({ onEdit, onEditProposta, onAbrirOs }: ControleProps = {}) {
+export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }: ControleProps = {}) {
   const { orcamentos, atualizar } = useStore();
 
   // Propostas são carregadas localmente (no modo mock ficam vazias).
@@ -372,6 +374,18 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs }: ControleProps = 
                               className="inline-flex items-center justify-center rounded-md p-1.5 text-text-muted transition hover:bg-success-soft hover:text-success"
                             >
                               <FileText size={16} />
+                            </button>
+                          )}
+                        {/* Ícone de Contrato — só para propostas aprovadas */}
+                        {r.tipoRegistro === "proposta" &&
+                          r.proposta?.aprovado &&
+                          onAbrirContrato && (
+                            <button
+                              onClick={() => onAbrirContrato(r.id)}
+                              title="Abrir Contrato"
+                              className="inline-flex items-center justify-center rounded-md p-1.5 text-text-muted transition hover:bg-success-soft hover:text-success"
+                            >
+                              <FileSignature size={16} />
                             </button>
                           )}
                       </div>

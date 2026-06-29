@@ -233,6 +233,20 @@ export interface Proposta {
   equipamentos: EquipamentoProposta[];
 }
 
+// ===== Contrato =====
+// Documento gerado a partir de uma proposta aprovada. O corpo (cláusulas) é
+// editável como texto, uma cláusula/parágrafo por linha.
+export interface Contrato {
+  id: string;
+  numero: string;
+  propostaId: string;
+  data: string; // ISO yyyy-mm-dd
+  conteudoPadraoSnap: string;
+  conteudoCustomizado: string;
+  enviado: boolean;
+  enviadoEm: string | null;
+}
+
 // Campos de status booleanos da página de Controle
 export const STATUS_FIELDS: { key: keyof Orcamento; label: string }[] = [
   { key: "enviado", label: "Enviado" },

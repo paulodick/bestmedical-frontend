@@ -6,13 +6,14 @@ import { Controle } from "./pages/controle";
 import { Crm } from "./pages/crm";
 import { OrdemServicoPage } from "./pages/ordemservico";
 import { PropostaContrato } from "./pages/propostacontrato";
+import { ContratoPage } from "./pages/contrato";
 import { Login } from "./pages/Login";
 import { AuthProvider, useAuth } from "./auth";
 import { API_ENABLED } from "./lib/api";
 import logoSymbol from "./assets/logo-symbol.png";
 import type { Orcamento, Proposta } from "./types";
 
-type Page = "novo" | "controle" | "crm" | "os" | "proposta";
+type Page = "novo" | "controle" | "crm" | "os" | "proposta" | "contrato";
 
 function Logo() {
   return (
@@ -78,6 +79,10 @@ function AppShell() {
   const [propostaEdit, setPropostaEdit] = useState<Proposta | null>(null);
   // Id do orçamento cuja OS deve ser aberta
   const [osOrcamentoId, setOsOrcamentoId] = useState<string | null>(null);
+  // Id da proposta cujo contrato deve ser aberto
+  const [propostaContratoId, setPropostaContratoId] = useState<string | null>(
+    null,
+  );
   const { logout, user } = useAuth();
 
   // CRM é exclusivo do login paulo@bestmedical.com.br.
@@ -268,6 +273,14 @@ function AppShell() {
                   setPage("controle");
                 }}
               />
+            ) : page === "contrato" && propostaContratoId ? (
+              <ContratoPage
+                propostaId={propostaContratoId}
+                onVoltar={() => {
+                  setPropostaContratoId(null);
+                  setPage("controle");
+                }}
+              />
             ) : page === "crm" && podeVerCrm ? (
               <Crm />
             ) : (
@@ -283,6 +296,10 @@ function AppShell() {
                 onAbrirOs={(orcId) => {
                   setOsOrcamentoId(orcId);
                   setPage("os");
+                }}
+                onAbrirContrato={(propostaId) => {
+                  setPropostaContratoId(propostaId);
+                  setPage("contrato");
                 }}
               />
             )}

@@ -182,6 +182,51 @@ export const api = {
     }
   },
 
+  // ===== Contratos =====
+  // Gera (ou retorna, se já existir) o contrato de uma proposta aprovada.
+  gerarContratoDeProposta: (propostaId: string) =>
+    req<any>(`/contratos/gerar-de-proposta/${propostaId}`, { method: "POST" }),
+  // Busca o contrato vinculado a uma proposta (lança 404 se ainda não existe).
+  buscarContratoPorProposta: (propostaId: string) =>
+    req<any>(`/contratos/por-proposta/${propostaId}`),
+  // Busca o contrato pelo id próprio.
+  obterContrato: (id: string) => req<any>(`/contratos/${id}`),
+  // Salva o corpo customizado do contrato.
+  atualizarContrato: (id: string, dados: any) =>
+    req<any>(`/contratos/${id}`, { method: "PUT", body: JSON.stringify(dados) }),
+  // Envia o contrato por e-mail ao solicitante (com cópia de controle).
+  enviarContrato: (id: string) =>
+    req<{ ok: boolean; mensagem: string; contrato?: any }>(
+      `/contratos/${id}/enviar`,
+      { method: "POST" },
+    ),
+  // Abre o PDF do contrato gerado pelo servidor numa nova aba.
+  abrirPdfContrato: async (id: string) => {
+    const res = await fetch(`${BASE}/contratos/${id}/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      let msg = `Erro ${res.status} ao gerar o PDF do contrato`;
+      try {
+        const body = await res.json();
+        msg = body?.message ? String(body.message) : msg;
+      } catch {
+        /* corpo não-JSON */
+      }
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    if (!win) {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `contrato-${id}.pdf`;
+      a.click();
+    }
+  },
+
   // ===== CRM (agenda de contatos) =====
   listarContatosCrm: (query = "") =>
     req<ListaResposta<any>>(`/crm/contatos${query}`),
