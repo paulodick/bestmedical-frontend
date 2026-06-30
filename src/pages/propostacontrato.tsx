@@ -92,6 +92,11 @@ function novaPropostaVazia(numero: string): Proposta {
     aguardandoPeca: false,
     ordemServico: false,
     pagamentoRealizado: false,
+    assinado: false,
+    vigente: false,
+    reprovado: false,
+    enviadoEm: null,
+    contratoAssinado: null,
     equipamentos: [equipamentoVazio()],
   };
 }

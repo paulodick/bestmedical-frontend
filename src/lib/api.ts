@@ -182,6 +182,59 @@ export const api = {
     }
   },
 
+  // Upload do contrato assinado (PDF em base64). Ao carregar, a proposta passa
+  // automaticamente para o status "Assinado". Retorna a proposta serializada.
+  enviarContratoAssinado: (id: string, arquivoBase64: string, nome: string) =>
+    req<any>(`/propostas/${id}/contrato-assinado`, {
+      method: "POST",
+      body: JSON.stringify({ arquivoBase64, nome }),
+    }),
+  // Abre o PDF do contrato assinado carregado numa nova aba.
+  abrirContratoAssinado: async (id: string) => {
+    const res = await fetch(`${BASE}/propostas/${id}/contrato-assinado`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      let msg = `Erro ${res.status} ao abrir o contrato assinado`;
+      try {
+        const body = await res.json();
+        msg = body?.message ? String(body.message) : msg;
+      } catch {
+        /* corpo não-JSON */
+      }
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    if (!win) {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `contrato-assinado-${id}.pdf`;
+      a.click();
+    }
+  },
+
+  // ===== Follow-ups (acompanhamento comercial) =====
+  // Lista os follow-ups de um orçamento OU de uma proposta (decrescente por data).
+  listarFollowUps: (params: { orcamentoId?: string; propostaId?: string }) => {
+    const qs = new URLSearchParams();
+    if (params.orcamentoId) qs.set("orcamentoId", params.orcamentoId);
+    if (params.propostaId) qs.set("propostaId", params.propostaId);
+    return req<any[]>(`/follow-ups?${qs.toString()}`);
+  },
+  // Cria um follow-up (autor = usuário logado, definido no servidor).
+  criarFollowUp: (payload: {
+    orcamentoId?: string;
+    propostaId?: string;
+    texto: string;
+  }) =>
+    req<any>("/follow-ups", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
   // ===== Contratos =====
   // Gera (ou retorna, se já existir) o contrato de uma proposta aprovada.
   gerarContratoDeProposta: (propostaId: string) =>

@@ -1,9 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
-import { Search, Eye, X, FileDown, Loader2, FileText, FileSignature } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Search,
+  Eye,
+  X,
+  FileDown,
+  Loader2,
+  FileText,
+  FileSignature,
+  Upload,
+  CheckCircle2,
+  ChevronDown,
+} from "lucide-react";
 import { useStore } from "../store";
 import type { Orcamento, Proposta } from "../types";
-import { STATUS_FIELDS } from "../types";
+import { STATUS_FIELDS, STATUS_FIELDS_PC } from "../types";
 import { Modal } from "../components/Modal";
+import { FollowUpModal } from "../components/FollowUpModal";
 import { OrcamentoPreview } from "../components/OrcamentoPreview";
 import { Button, Input, Select, StatusPill } from "../components/ui";
 import { formatBRL, formatDataBR } from "../lib/format";
@@ -32,8 +44,27 @@ interface Registro {
   empresa: string;
   cnpj: string;
   total: number;
+  enviadoEm?: string | null;
   orcamento?: Orcamento;
   proposta?: Proposta;
+}
+
+// Status que ficam OCULTOS por padrão na lista de Controle.
+// Só aparecem quando o usuário marca explicitamente no filtro "Status".
+const STATUS_OCULTOS_PADRAO = ["reprovado", "pagamentoRealizado", "vigente"];
+
+// Conjunto de status disponíveis no filtro (união de orçamentos + propostas),
+// sem duplicar chaves.
+const STATUS_FILTRO: { key: string; label: string }[] = (() => {
+  const mapa = new Map<string, string>();
+  for (const s of STATUS_FIELDS) mapa.set(s.key as string, s.label);
+  for (const s of STATUS_FIELDS_PC) mapa.set(s.key as string, s.label);
+  return [...mapa.entries()].map(([key, label]) => ({ key, label }));
+})();
+
+// Uma linha é uma Proposta de Contrato (PC) quando o número começa com "PC".
+function ehProposta(r: Registro): boolean {
+  return r.tipoRegistro === "proposta";
 }
 
 // Lê um status booleano de controle a partir do objeto subjacente.
@@ -45,7 +76,49 @@ function statusOn(r: Registro, key: string): boolean {
   return !!fonte?.[key];
 }
 
-export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }: ControleProps = {}) {
+// Calcula o número de dias (inteiro) desde a data de envio até hoje,
+// considerando apenas a data (sem hora). Retorna null se não há envio.
+function diasDesdeEnvio(enviadoEm?: string | null): number | null {
+  if (!enviadoEm) return null;
+  const env = new Date(enviadoEm);
+  if (isNaN(env.getTime())) return null;
+  const hoje = new Date();
+  const a = new Date(env.getFullYear(), env.getMonth(), env.getDate());
+  const b = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const diff = Math.round((b.getTime() - a.getTime()) / 86_400_000);
+  return diff < 0 ? 0 : diff;
+}
+
+// Rótulo + cores do "selo" da coluna Enviado, conforme os dias.
+function seloEnvio(dias: number | null): {
+  texto: string;
+  classe: string;
+} {
+  if (dias === null) {
+    return {
+      texto: "—",
+      classe: "bg-surface-offset text-text-faint",
+    };
+  }
+  if (dias === 0) {
+    return {
+      texto: "Hoje",
+      classe: "bg-emerald-100 text-emerald-700",
+    };
+  }
+  const texto = dias === 1 ? "1 dia" : `${dias} dias`;
+  if (dias <= 2) {
+    return { texto, classe: "bg-amber-100 text-amber-700" };
+  }
+  return { texto, classe: "bg-rose-100 text-rose-700" };
+}
+
+export function Controle({
+  onEdit,
+  onEditProposta,
+  onAbrirOs,
+  onAbrirContrato,
+}: ControleProps = {}) {
   const { orcamentos, atualizar } = useStore();
 
   // Propostas são carregadas localmente (no modo mock ficam vazias).
@@ -56,26 +129,48 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
   const [fEmpresa, setFEmpresa] = useState("");
   const [fCnpj, setFCnpj] = useState("");
   const [fData, setFData] = useState("");
-  const [fStatus, setFStatus] = useState<string>("");
+  // Filtro de status agora é multi-seleção (checkboxes). Vazio = padrão.
+  const [statusSelecionados, setStatusSelecionados] = useState<string[]>([]);
+  const [statusAberto, setStatusAberto] = useState(false);
+  const statusRef = useRef<HTMLDivElement>(null);
+
   const [preview, setPreview] = useState<Orcamento | null>(null);
   // ID do registro cujo PDF está sendo gerado (para mostrar o spinner).
   const [pdfCarregando, setPdfCarregando] = useState<string | null>(null);
   const [pdfErro, setPdfErro] = useState<string | null>(null);
 
+  // Follow-up: registro atualmente aberto no modal.
+  const [followUpReg, setFollowUpReg] = useState<Registro | null>(null);
+
+  // Upload do contrato assinado: id da proposta em processamento.
+  const [uploadCarregando, setUploadCarregando] = useState<string | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const propostaUploadId = useRef<string | null>(null);
+
   // Carrega as propostas da API (mesma cadência da lista de orçamentos).
-  useEffect(() => {
+  const recarregarPropostas = () => {
     if (!API_ENABLED) return;
-    let ativo = true;
     api
       .listarPropostas("?order=data_desc&pageSize=100")
-      .then((r) => {
-        if (ativo) setPropostas(r.data as Proposta[]);
-      })
+      .then((r) => setPropostas(r.data as Proposta[]))
       .catch((e) => console.error("Falha ao carregar propostas:", e));
-    return () => {
-      ativo = false;
-    };
+  };
+
+  useEffect(() => {
+    recarregarPropostas();
   }, []);
+
+  // Fecha o dropdown de status ao clicar fora.
+  useEffect(() => {
+    if (!statusAberto) return;
+    const onClickFora = (e: MouseEvent) => {
+      if (statusRef.current && !statusRef.current.contains(e.target as Node)) {
+        setStatusAberto(false);
+      }
+    };
+    document.addEventListener("mousedown", onClickFora);
+    return () => document.removeEventListener("mousedown", onClickFora);
+  }, [statusAberto]);
 
   // Abre o PDF gerado pelo servidor (rota por tipo). Disponível com API.
   const handlePdf = async (r: Registro) => {
@@ -86,7 +181,9 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
       if (r.tipoRegistro === "proposta") await api.abrirPdfProposta(r.id);
       else await api.abrirPdf(r.id);
     } catch (e) {
-      setPdfErro(e instanceof Error ? e.message : "Não foi possível gerar o PDF.");
+      setPdfErro(
+        e instanceof Error ? e.message : "Não foi possível gerar o PDF.",
+      );
     } finally {
       setPdfCarregando(null);
     }
@@ -95,17 +192,93 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
   // Alterna um status: orçamento via store; proposta via API + otimista local.
   const toggleStatus = (r: Registro, key: string) => {
     const novo = !statusOn(r, key);
+    // Ao marcar "enviado", registra o momento do envio para a coluna Enviado.
+    const extra =
+      key === "enviado" && novo ? { enviadoEm: new Date().toISOString() } : {};
     if (r.tipoRegistro === "orcamento") {
-      atualizar(r.id, { [key]: novo });
+      atualizar(r.id, { [key]: novo, ...extra });
       return;
     }
     setPropostas((prev) =>
-      prev.map((p) => (p.id === r.id ? { ...p, [key]: novo } : p)),
+      prev.map((p) => (p.id === r.id ? { ...p, [key]: novo, ...extra } : p)),
     );
     if (API_ENABLED) {
       api
         .atualizarStatusProposta(r.id, { [key]: novo })
-        .catch((e) => console.error("Falha ao atualizar status da proposta:", e));
+        .then((p) => {
+          // Sincroniza com o servidor (inclui enviadoEm calculado lá).
+          setPropostas((prev) =>
+            prev.map((x) => (x.id === r.id ? (p as Proposta) : x)),
+          );
+        })
+        .catch((e) =>
+          console.error("Falha ao atualizar status da proposta:", e),
+        );
+    }
+  };
+
+  // Dispara o seletor de arquivo para o upload do contrato assinado.
+  const iniciarUploadContrato = (propostaId: string) => {
+    propostaUploadId.current = propostaId;
+    uploadInputRef.current?.click();
+  };
+
+  // Lê o PDF selecionado e envia em base64 ao servidor.
+  const onArquivoSelecionado = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const arquivo = e.target.files?.[0];
+    const propostaId = propostaUploadId.current;
+    // Limpa o input para permitir reenviar o mesmo arquivo depois.
+    e.target.value = "";
+    if (!arquivo || !propostaId) return;
+
+    if (arquivo.type !== "application/pdf") {
+      setPdfErro("Selecione um arquivo PDF.");
+      return;
+    }
+
+    setPdfErro(null);
+    setUploadCarregando(propostaId);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Falha ao ler o arquivo."));
+        reader.readAsDataURL(arquivo);
+      });
+      const atualizada = await api.enviarContratoAssinado(
+        propostaId,
+        base64,
+        arquivo.name,
+      );
+      // O servidor já marca como "Assinado". Atualiza a linha local.
+      setPropostas((prev) =>
+        prev.map((p) => (p.id === propostaId ? (atualizada as Proposta) : p)),
+      );
+    } catch (err) {
+      setPdfErro(
+        err instanceof Error
+          ? err.message
+          : "Não foi possível enviar o contrato assinado.",
+      );
+    } finally {
+      setUploadCarregando(null);
+      propostaUploadId.current = null;
+    }
+  };
+
+  // Abre o PDF do contrato assinado carregado.
+  const abrirContratoAssinado = async (propostaId: string) => {
+    setPdfErro(null);
+    try {
+      await api.abrirContratoAssinado(propostaId);
+    } catch (e) {
+      setPdfErro(
+        e instanceof Error
+          ? e.message
+          : "Não foi possível abrir o contrato assinado.",
+      );
     }
   };
 
@@ -119,6 +292,7 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
       empresa: o.empresa,
       cnpj: o.cnpj,
       total: totalFinal(o),
+      enviadoEm: o.enviadoEm ?? null,
       orcamento: o,
     }));
     const dasPropostas: Registro[] = propostas.map((p) => ({
@@ -129,6 +303,7 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
       empresa: p.empresa,
       cnpj: p.cnpj,
       total: p.total,
+      enviadoEm: p.enviadoEm ?? null,
       proposta: p,
     }));
     return [...dosOrcamentos, ...dasPropostas];
@@ -136,7 +311,8 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
 
   // Base após o filtro de tipo (alimenta os selects de empresa/CNPJ).
   const base = useMemo(
-    () => (fTipo ? registros.filter((r) => r.tipoRegistro === fTipo) : registros),
+    () =>
+      fTipo ? registros.filter((r) => r.tipoRegistro === fTipo) : registros,
     [registros, fTipo],
   );
 
@@ -155,7 +331,19 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
         if (fEmpresa && r.empresa !== fEmpresa) return false;
         if (fCnpj && r.cnpj !== fCnpj) return false;
         if (fData && r.data !== fData) return false;
-        if (fStatus && !statusOn(r, fStatus)) return false;
+
+        // ===== Regra de status =====
+        if (statusSelecionados.length > 0) {
+          // Mostra o registro se possuir QUALQUER um dos status marcados.
+          const algum = statusSelecionados.some((k) => statusOn(r, k));
+          if (!algum) return false;
+        } else {
+          // Padrão: oculta Reprovado, Pagamento Realizado e Vigente.
+          for (const oculto of STATUS_OCULTOS_PADRAO) {
+            if (statusOn(r, oculto)) return false;
+          }
+        }
+
         if (busca) {
           const q = busca.toLowerCase();
           return (
@@ -167,9 +355,22 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
         return true;
       })
       .sort((a, b) => b.numero.localeCompare(a.numero));
-  }, [base, busca, fEmpresa, fCnpj, fData, fStatus]);
+  }, [base, busca, fEmpresa, fCnpj, fData, statusSelecionados]);
 
-  const temFiltro = !!(fTipo || busca || fEmpresa || fCnpj || fData || fStatus);
+  const temFiltro = !!(
+    fTipo ||
+    busca ||
+    fEmpresa ||
+    fCnpj ||
+    fData ||
+    statusSelecionados.length
+  );
+
+  const toggleStatusFiltro = (key: string) => {
+    setStatusSelecionados((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -226,14 +427,53 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
             onChange={(e) => setFData(e.target.value)}
             title="Filtrar por data"
           />
-          <Select value={fStatus} onChange={(e) => setFStatus(e.target.value)}>
-            <option value="">Todos status</option>
-            {STATUS_FIELDS.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
-              </option>
-            ))}
-          </Select>
+
+          {/* Filtro Status — dropdown com checkboxes (multi-seleção) */}
+          <div className="relative" ref={statusRef}>
+            <button
+              type="button"
+              onClick={() => setStatusAberto((v) => !v)}
+              className="flex w-full min-w-[150px] items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 py-2 text-[14px] text-text transition hover:border-primary"
+            >
+              <span className="truncate">
+                {statusSelecionados.length === 0
+                  ? "Status"
+                  : `Status (${statusSelecionados.length})`}
+              </span>
+              <ChevronDown size={16} className="shrink-0 text-text-faint" />
+            </button>
+            {statusAberto && (
+              <div className="absolute right-0 z-40 mt-1 w-56 rounded-lg border border-border bg-surface p-1.5 shadow-lg">
+                {STATUS_FILTRO.map((s) => {
+                  const marcado = statusSelecionados.includes(s.key);
+                  return (
+                    <label
+                      key={s.key}
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-text transition hover:bg-surface-offset"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={marcado}
+                        onChange={() => toggleStatusFiltro(s.key)}
+                        className="h-4 w-4 cursor-pointer accent-primary"
+                      />
+                      <span>{s.label}</span>
+                    </label>
+                  );
+                })}
+                {statusSelecionados.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setStatusSelecionados([])}
+                    className="mt-1 w-full rounded-md px-2.5 py-1.5 text-left text-[12px] text-primary transition hover:bg-primary-soft"
+                  >
+                    Limpar seleção
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
           {temFiltro && (
             <Button
               variant="secondary"
@@ -243,7 +483,7 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
                 setFEmpresa("");
                 setFCnpj("");
                 setFData("");
-                setFStatus("");
+                setStatusSelecionados([]);
               }}
               title="Limpar filtros"
               className="px-2"
@@ -259,6 +499,7 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
             <tr>
+              <th className="px-3 py-2.5 font-medium">Enviado</th>
               <th className="px-3 py-2.5 font-medium">Nº</th>
               <th className="px-3 py-2.5 font-medium">Data</th>
               <th className="px-3 py-2.5 font-medium">Empresa</th>
@@ -270,7 +511,7 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
           <tbody>
             {filtrados.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-slate-500">
+                <td colSpan={7} className="p-8 text-center text-slate-500">
                   Nenhum registro encontrado.
                 </td>
               </tr>
@@ -284,16 +525,34 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
                     : onEdit
                       ? () => onEdit(r.orcamento as Orcamento)
                       : undefined;
+
+                const dias = diasDesdeEnvio(r.enviadoEm);
+                const selo = seloEnvio(dias);
+                const isPC = ehProposta(r);
+                const campos = isPC ? STATUS_FIELDS_PC : STATUS_FIELDS;
+                const contratoAssinado = r.proposta?.contratoAssinado;
+
                 return (
                   <tr
                     key={`${r.tipoRegistro}-${r.id}`}
                     className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50"
                   >
+                    {/* Coluna Enviado — selo de dias + abre o follow-up */}
+                    <td className="px-3 py-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setFollowUpReg(r)}
+                        title="Registrar / ver follow-up"
+                        className={`inline-flex items-center justify-center rounded-md px-2.5 py-1 text-[12px] font-semibold transition hover:ring-2 hover:ring-primary/30 ${selo.classe}`}
+                      >
+                        {selo.texto}
+                      </button>
+                    </td>
                     <td className="px-3 py-2.5 font-medium text-slate-900">
                       {abrirEdicao ? (
                         <span
                           onClick={abrirEdicao}
-                          className="cursor-pointer hover:underline text-blue-600 transition-colors"
+                          className="cursor-pointer text-blue-600 transition-colors hover:underline"
                           title={
                             r.tipoRegistro === "proposta"
                               ? "Clique para editar esta proposta"
@@ -322,9 +581,9 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
                     </td>
                     <td className="px-3 py-2.5">
                       <div className="flex flex-wrap gap-1">
-                        {STATUS_FIELDS.map((s) => (
+                        {campos.map((s) => (
                           <StatusPill
-                            key={s.key}
+                            key={s.key as string}
                             on={statusOn(r, s.key as string)}
                             label={s.label}
                             onClick={() => toggleStatus(r, s.key as string)}
@@ -376,18 +635,45 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
                               <FileText size={16} />
                             </button>
                           )}
-                        {/* Ícone de Contrato — só para propostas aprovadas */}
+                        {/* Ícone de Contrato (minuta) — só para propostas aprovadas */}
                         {r.tipoRegistro === "proposta" &&
                           r.proposta?.aprovado &&
                           onAbrirContrato && (
                             <button
                               onClick={() => onAbrirContrato(r.id)}
-                              title="Abrir Contrato"
+                              title="Abrir minuta do contrato"
                               className="inline-flex items-center justify-center rounded-md p-1.5 text-text-muted transition hover:bg-success-soft hover:text-success"
                             >
                               <FileSignature size={16} />
                             </button>
                           )}
+                        {/* Upload do contrato assinado — só para PC aprovada */}
+                        {API_ENABLED &&
+                          r.tipoRegistro === "proposta" &&
+                          r.proposta?.aprovado && (
+                            <button
+                              onClick={() => iniciarUploadContrato(r.id)}
+                              disabled={uploadCarregando === r.id}
+                              title="Carregar contrato assinado (PDF)"
+                              className="inline-flex items-center justify-center rounded-md p-1.5 text-text-muted transition hover:bg-primary-soft hover:text-primary disabled:opacity-50"
+                            >
+                              {uploadCarregando === r.id ? (
+                                <Loader2 size={16} className="animate-spin" />
+                              ) : (
+                                <Upload size={16} />
+                              )}
+                            </button>
+                          )}
+                        {/* Check verde — abre o contrato assinado carregado */}
+                        {r.tipoRegistro === "proposta" && contratoAssinado && (
+                          <button
+                            onClick={() => abrirContratoAssinado(r.id)}
+                            title="Abrir contrato assinado"
+                            className="inline-flex items-center justify-center rounded-md p-1.5 text-emerald-600 transition hover:bg-emerald-50"
+                          >
+                            <CheckCircle2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -398,10 +684,35 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
         </table>
       </div>
 
+      {/* Input oculto para upload do contrato assinado */}
+      <input
+        ref={uploadInputRef}
+        type="file"
+        accept="application/pdf"
+        className="hidden"
+        onChange={onArquivoSelecionado}
+      />
+
       {/* Legenda compacta de status (mobile-friendly) */}
       <div className="flex flex-wrap gap-2 text-[11px] text-text-faint">
-        <span>Dica: altere qualquer status diretamente na tabela.</span>
+        <span>
+          Dica: altere qualquer status diretamente na tabela. Clique na coluna
+          Enviado para registrar follow-ups.
+        </span>
       </div>
+
+      {/* Modal de follow-up */}
+      <FollowUpModal
+        open={!!followUpReg}
+        onClose={() => setFollowUpReg(null)}
+        orcamentoId={
+          followUpReg?.tipoRegistro === "orcamento" ? followUpReg.id : undefined
+        }
+        propostaId={
+          followUpReg?.tipoRegistro === "proposta" ? followUpReg.id : undefined
+        }
+        numero={followUpReg?.numero ?? ""}
+      />
 
       <Modal
         open={!!preview}
@@ -413,7 +724,11 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
             <div className="mr-auto flex flex-wrap gap-1.5">
               {preview &&
                 STATUS_FIELDS.map((s) => (
-                  <StatusPill key={s.key} on={!!preview[s.key as keyof Orcamento]} label={s.label} />
+                  <StatusPill
+                    key={s.key}
+                    on={!!preview[s.key as keyof Orcamento]}
+                    label={s.label}
+                  />
                 ))}
             </div>
             {API_ENABLED && preview?.id && (
@@ -444,7 +759,9 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
                 {pdfCarregando === preview.id ? "Gerando…" : "Baixar PDF"}
               </Button>
             )}
-            <Button variant="ghost" onClick={() => setPreview(null)}>Fechar</Button>
+            <Button variant="ghost" onClick={() => setPreview(null)}>
+              Fechar
+            </Button>
           </>
         }
       >
@@ -453,7 +770,7 @@ export function Controle({ onEdit, onEditProposta, onAbrirOs, onAbrirContrato }:
         </div>
       </Modal>
 
-      {/* Toast de erro ao gerar PDF */}
+      {/* Toast de erro ao gerar PDF / upload */}
       {pdfErro && (
         <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 animate-[fadeIn_.2s_ease] rounded-lg bg-slate-900 px-4 py-3 text-[13px] font-medium text-white shadow-lg">
           <span className="flex items-center gap-2">

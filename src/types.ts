@@ -120,6 +120,8 @@ export interface Orcamento {
   aguardandoPeca: boolean;
   ordemServico: boolean;
   pagamentoRealizado: boolean;
+  // Quando o orçamento foi enviado (ISO datetime) — coluna "Enviado"
+  enviadoEm?: string | null;
 }
 
 export const MODALIDADES = [
@@ -229,8 +231,27 @@ export interface Proposta {
   aguardandoPeca: boolean;
   ordemServico: boolean;
   pagamentoRealizado: boolean;
+  // Status específicos de Proposta de Contrato (PC)
+  assinado: boolean;
+  vigente: boolean;
+  reprovado: boolean;
+  // Quando a proposta foi enviada (ISO datetime) — usado na coluna "Enviado"
+  enviadoEm?: string | null;
+  // Metadados do contrato assinado carregado (PDF guardado no servidor)
+  contratoAssinado?: { nome: string; em: string | null } | null;
   // Equipamentos cobertos
   equipamentos: EquipamentoProposta[];
+}
+
+// ===== Follow-up (acompanhamento comercial) =====
+export interface FollowUp {
+  id: string;
+  orcamentoId: string | null;
+  propostaId: string | null;
+  autorId: string | null;
+  autorNome: string;
+  texto: string;
+  createdAt: string; // ISO datetime
 }
 
 // ===== Contrato =====
@@ -247,7 +268,7 @@ export interface Contrato {
   enviadoEm: string | null;
 }
 
-// Campos de status booleanos da página de Controle
+// Campos de status booleanos da página de Controle (orçamentos)
 export const STATUS_FIELDS: { key: keyof Orcamento; label: string }[] = [
   { key: "enviado", label: "Enviado" },
   { key: "aprovado", label: "Aprovado" },
@@ -255,4 +276,13 @@ export const STATUS_FIELDS: { key: keyof Orcamento; label: string }[] = [
   { key: "aguardandoPeca", label: "Aguardando peça" },
   { key: "ordemServico", label: "Ordem de serviço" },
   { key: "pagamentoRealizado", label: "Pagamento realizado" },
+];
+
+// Campos de status específicos das Propostas de Contrato (linhas que começam com PC).
+export const STATUS_FIELDS_PC: { key: keyof Proposta; label: string }[] = [
+  { key: "enviado", label: "Enviado" },
+  { key: "aprovado", label: "Aprovado" },
+  { key: "assinado", label: "Assinado" },
+  { key: "vigente", label: "Vigente" },
+  { key: "reprovado", label: "Reprovado" },
 ];
