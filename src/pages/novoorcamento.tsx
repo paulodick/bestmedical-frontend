@@ -176,11 +176,25 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
     };
 
     if (API_ENABLED) {
+      setBuscandoCnpj(true);
       try {
         const cliente = await api.buscarClientePorCnpj(cnpjDigitado);
-        if (cliente && cliente.encontrado) aplicar(cliente);
+        if (cliente && cliente.encontrado) {
+          aplicar(cliente);
+        } else {
+          mostrarToast(
+            "CNPJ não encontrado na base pública. Preencha os dados manualmente.",
+            "erro",
+          );
+        }
       } catch {
-        // erro de rede/404: segue como cliente novo, sem incomodar.
+        // Falha de rede/servidor (ex.: servidor “acordando”). Avisa o usuário.
+        mostrarToast(
+          "Não foi possível consultar o CNPJ agora. Tente novamente em instantes.",
+          "erro",
+        );
+      } finally {
+        setBuscandoCnpj(false);
       }
       return;
     }
@@ -195,6 +209,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
   const [showPreview, setShowPreview] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [gerandoPdf, setGerandoPdf] = useState(false);
+  const [buscandoCnpj, setBuscandoCnpj] = useState(false);
   const [toast, setToast] = useState<{ tipo: "sucesso" | "erro"; msg: string } | null>(
     null
   );
@@ -340,19 +355,27 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
 
           <Block title="Dados do Cliente" step={2} icon={<Building2 size={18} />}>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input
-                label="CNPJ"
-                value={o.cnpj}
-                onChange={(e) => setO({ ...o, cnpj: maskCNPJ(e.target.value) })}
-                onBlur={(e) => buscarClientePorCnpj(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    buscarClientePorCnpj(e.currentTarget.value);
-                  }
-                }}
-                maxLength={18}
-              />
+              <div>
+                <Input
+                  label="CNPJ"
+                  value={o.cnpj}
+                  onChange={(e) => setO({ ...o, cnpj: maskCNPJ(e.target.value) })}
+                  onBlur={(e) => buscarClientePorCnpj(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      buscarClientePorCnpj(e.currentTarget.value);
+                    }
+                  }}
+                  maxLength={18}
+                />
+                {buscandoCnpj && (
+                  <div className="mt-1 flex items-center gap-1.5 text-[12px] text-text-muted">
+                    <Loader2 size={12} className="animate-spin" />
+                    Buscando dados do CNPJ...
+                  </div>
+                )}
+              </div>
               <Input
                 label="Empresa / Cliente"
                 value={o.empresa}

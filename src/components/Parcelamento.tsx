@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { Parcela } from "../types";
 import {
   formatBRL,
@@ -28,9 +29,32 @@ export function Parcelamento({
   onChangeNum: (n: number) => void;
   onChangeParcelas: (p: Parcela[]) => void;
 }) {
-  // Altera o número de parcelas -> regenera a tabela mantendo datas/1ª data
-  const setNum = (raw: string) => {
-    const n = Math.max(1, Math.min(360, parseInt(raw || "1", 10) || 1));
+  // Texto bruto do campo de parcelas: permite o usuário APAGAR o conteúdo
+  // (inclusive o "1") e digitar outro número do zero. A normalização
+  // (mínimo 1, máximo 360) só acontece ao sair do campo (onBlur).
+  const [numTexto, setNumTexto] = useState(String(numParcelas));
+
+  // Mantém o texto em sincronia quando o valor muda por fora (ex.: ao
+  // carregar um orçamento existente), sem atrapalhar a digitação.
+  useEffect(() => {
+    setNumTexto(String(numParcelas));
+  }, [numParcelas]);
+
+  // Enquanto digita: aceita vazio e só dígitos. Quando há um número válido,
+  // já aplica (regenerando a tabela); se ficar vazio, não força nada ainda.
+  const aoDigitarNum = (raw: string) => {
+    const limpo = raw.replace(/\D/g, "");
+    setNumTexto(limpo);
+    if (limpo === "") return; // deixa o campo vazio durante a edição
+    const n = Math.max(1, Math.min(360, parseInt(limpo, 10) || 1));
+    onChangeNum(n);
+    onChangeParcelas(gerarParcelas(n, total, parcelas));
+  };
+
+  // Ao sair do campo: normaliza para um valor válido (mínimo 1).
+  const aoSairNum = () => {
+    const n = Math.max(1, Math.min(360, parseInt(numTexto || "1", 10) || 1));
+    setNumTexto(String(n));
     onChangeNum(n);
     onChangeParcelas(gerarParcelas(n, total, parcelas));
   };
@@ -71,10 +95,11 @@ export function Parcelamento({
           Parcelamento
         </label>
         <input
-          type="number"
-          min={1}
-          value={numParcelas}
-          onChange={(e) => setNum(e.target.value)}
+          type="text"
+          inputMode="numeric"
+          value={numTexto}
+          onChange={(e) => aoDigitarNum(e.target.value)}
+          onBlur={aoSairNum}
           className="w-20 rounded-md border border-border bg-surface px-3 py-1.5 text-[14px] text-text focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
         <span className="text-[12px] text-text-faint">
