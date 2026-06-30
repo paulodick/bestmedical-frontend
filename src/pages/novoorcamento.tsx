@@ -83,6 +83,7 @@ function novoOrcamentoVazio(numero: string): Orcamento {
     aguardandoPeca: false,
     ordemServico: false,
     pagamentoRealizado: false,
+    reprovado: false,
   };
 }
 

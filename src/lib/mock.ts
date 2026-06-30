@@ -138,6 +138,7 @@ export const SEED_ORCAMENTOS: OrcamentoSeed[] = [
     aguardandoPeca: true,
     ordemServico: true,
     pagamentoRealizado: false,
+    reprovado: false,
   },
   {
     id: uid(),
@@ -174,6 +175,7 @@ export const SEED_ORCAMENTOS: OrcamentoSeed[] = [
     aguardandoPeca: false,
     ordemServico: false,
     pagamentoRealizado: false,
+    reprovado: false,
   },
   {
     id: uid(),
@@ -211,6 +213,7 @@ export const SEED_ORCAMENTOS: OrcamentoSeed[] = [
     aguardandoPeca: false,
     ordemServico: true,
     pagamentoRealizado: true,
+    reprovado: false,
   },
   {
     id: uid(),
@@ -247,6 +250,7 @@ export const SEED_ORCAMENTOS: OrcamentoSeed[] = [
     aguardandoPeca: false,
     ordemServico: false,
     pagamentoRealizado: false,
+    reprovado: false,
   },
   {
     id: uid(),
@@ -284,5 +288,6 @@ export const SEED_ORCAMENTOS: OrcamentoSeed[] = [
     aguardandoPeca: true,
     ordemServico: false,
     pagamentoRealizado: false,
+    reprovado: false,
   },
 ];

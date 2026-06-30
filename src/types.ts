@@ -120,6 +120,7 @@ export interface Orcamento {
   aguardandoPeca: boolean;
   ordemServico: boolean;
   pagamentoRealizado: boolean;
+  reprovado: boolean;
   // Quando o orçamento foi enviado (ISO datetime) — coluna "Enviado"
   enviadoEm?: string | null;
 }
@@ -276,6 +277,7 @@ export const STATUS_FIELDS: { key: keyof Orcamento; label: string }[] = [
   { key: "aguardandoPeca", label: "Aguardando peça" },
   { key: "ordemServico", label: "Ordem de serviço" },
   { key: "pagamentoRealizado", label: "Pagamento realizado" },
+  { key: "reprovado", label: "Reprovado" },
 ];
 
 // Campos de status específicos das Propostas de Contrato (linhas que começam com PC).

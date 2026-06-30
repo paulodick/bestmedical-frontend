@@ -234,6 +234,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  // Remove um follow-up. O servidor só permite ao autor do comentário ou ao admin master.
+  removerFollowUp: (id: string) =>
+    req<{ ok: boolean }>(`/follow-ups/${id}`, { method: "DELETE" }),
 
   // ===== Contratos =====
   // Gera (ou retorna, se já existir) o contrato de uma proposta aprovada.

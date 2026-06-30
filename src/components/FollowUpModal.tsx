@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { Modal } from "./Modal";
 import { Button, Textarea } from "./ui";
 import { api, API_ENABLED } from "../lib/api";
@@ -36,7 +36,15 @@ export function FollowUpModal({
   const [texto, setTexto] = useState("");
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [removendoId, setRemovendoId] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+
+  // E-mail do administrador master que pode apagar qualquer comentário.
+  const emailUsuario = (user?.email || "").trim().toLowerCase();
+  const ehAdminMaster = emailUsuario === "paulo@bestmedical.com.br";
+  // Define se o usuário logado pode apagar um follow-up específico.
+  const podeApagar = (f: FollowUp) =>
+    ehAdminMaster || (!!user?.id && f.autorId === user.id);
 
   // Data de hoje (dd/mm/aaaa) exibida no topo do formulário.
   const hoje = new Date().toLocaleDateString("pt-BR");
@@ -75,6 +83,22 @@ export function FollowUpModal({
       setErro(null);
     }
   }, [open]);
+
+  // Remove um follow-up (somente autor ou admin master, validado no servidor).
+  const remover = async (f: FollowUp) => {
+    if (!API_ENABLED) return;
+    if (!confirm("Apagar este comentário de follow-up?")) return;
+    setRemovendoId(f.id);
+    setErro(null);
+    try {
+      await api.removerFollowUp(f.id);
+      setLista((prev) => prev.filter((x) => x.id !== f.id));
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Falha ao apagar o follow-up.");
+    } finally {
+      setRemovendoId(null);
+    }
+  };
 
   const salvar = async () => {
     const conteudo = texto.trim();
@@ -179,7 +203,25 @@ export function FollowUpModal({
                     className="border-b border-divider align-top last:border-0"
                   >
                     <td className="px-3 py-2 whitespace-nowrap text-text-muted">
-                      {formatDataHora(f.createdAt)}
+                      <div className="flex items-center gap-2">
+                        {podeApagar(f) && (
+                          <button
+                            type="button"
+                            onClick={() => remover(f)}
+                            disabled={removendoId === f.id}
+                            title="Apagar comentário"
+                            aria-label="Apagar comentário"
+                            className="text-text-muted transition-colors hover:text-danger disabled:opacity-50"
+                          >
+                            {removendoId === f.id ? (
+                              <Loader2 size={15} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={15} />
+                            )}
+                          </button>
+                        )}
+                        <span>{formatDataHora(f.createdAt)}</span>
+                      </div>
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap font-medium text-text">
                       {f.autorNome}
