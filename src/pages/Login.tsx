@@ -1,7 +1,9 @@
-import { useState } from "react";
-import { Loader2, LogIn } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CheckCircle2, KeyRound, Loader2, LogIn } from "lucide-react";
 import { Button, Field, Input } from "../components/ui";
+import { Modal } from "../components/Modal";
 import { useAuth } from "../auth";
+import { api, API_ENABLED } from "../lib/api";
 import logoSymbol from "../assets/logo-symbol.png";
 
 export function Login() {
@@ -10,6 +12,9 @@ export function Login() {
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
+
+  // Estado do modal "Alterar senha".
+  const [modalSenha, setModalSenha] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,12 +100,193 @@ export function Login() {
           >
             {carregando ? "Entrando…" : "Entrar"}
           </Button>
+
+          {/* Link para abrir o modal de troca de senha */}
+          <button
+            type="button"
+            onClick={() => setModalSenha(true)}
+            className="mt-4 flex w-full items-center justify-center gap-1.5 text-[13px] font-medium text-primary transition-colors hover:text-primary/80"
+          >
+            <KeyRound size={14} />
+            Alterar senha
+          </button>
         </form>
 
         <p className="mt-4 text-center text-[11px] text-text-faint">
           Best Medical • Acesso restrito
         </p>
       </div>
+
+      <AlterarSenhaModal
+        open={modalSenha}
+        onClose={() => setModalSenha(false)}
+        emailInicial={email}
+      />
     </div>
+  );
+}
+
+// ===== Modal de troca de senha (tela de login, sem sessão) =====
+function AlterarSenhaModal({
+  open,
+  onClose,
+  emailInicial,
+}: {
+  open: boolean;
+  onClose: () => void;
+  emailInicial: string;
+}) {
+  const [email, setEmail] = useState(emailInicial);
+  const [senhaAtual, setSenhaAtual] = useState("");
+  const [novaSenha, setNovaSenha] = useState("");
+  const [confirmar, setConfirmar] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  const [sucesso, setSucesso] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+
+  // Reinicia o formulário sempre que abre, herdando o e-mail já digitado no login.
+  useEffect(() => {
+    if (open) {
+      setEmail(emailInicial);
+      setSenhaAtual("");
+      setNovaSenha("");
+      setConfirmar("");
+      setErro(null);
+      setSucesso(false);
+    }
+  }, [open, emailInicial]);
+
+  const fechar = () => {
+    onClose();
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErro(null);
+    if (!API_ENABLED) {
+      setErro("Recurso indisponível no modo de demonstração.");
+      return;
+    }
+    if (novaSenha.length < 6) {
+      setErro("A nova senha deve ter ao menos 6 caracteres.");
+      return;
+    }
+    if (novaSenha !== confirmar) {
+      setErro("A confirmação não coincide com a nova senha.");
+      return;
+    }
+    setSalvando(true);
+    try {
+      await api.alterarSenha(email.trim(), senhaAtual, novaSenha);
+      setSucesso(true);
+      setSenhaAtual("");
+      setNovaSenha("");
+      setConfirmar("");
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : "Falha ao alterar a senha.");
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={fechar}
+      title="Alterar senha"
+      footer={
+        sucesso ? (
+          <Button onClick={fechar}>Concluir</Button>
+        ) : (
+          <>
+            <Button variant="ghost" onClick={fechar} type="button">
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form="form-alterar-senha"
+              disabled={salvando}
+              icon={
+                salvando ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <KeyRound size={16} />
+                )
+              }
+            >
+              {salvando ? "Salvando…" : "Salvar nova senha"}
+            </Button>
+          </>
+        )
+      }
+    >
+      <div className="p-5">
+        {sucesso ? (
+          <div className="flex flex-col items-center gap-3 py-6 text-center">
+            <CheckCircle2 size={40} className="text-success" />
+            <div>
+              <div className="text-[15px] font-semibold text-text">
+                Senha alterada com sucesso
+              </div>
+              <p className="mt-1 text-[13px] text-text-muted">
+                Use a nova senha para entrar no sistema.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <form id="form-alterar-senha" onSubmit={submit} className="space-y-4">
+            <p className="text-[13px] text-text-muted">
+              Informe seu e-mail e a senha atual para definir uma nova senha.
+            </p>
+            <Field label="E-mail">
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="nome@bestmedical.com.br"
+                autoComplete="username"
+                required
+              />
+            </Field>
+            <Field label="Senha atual">
+              <Input
+                type="password"
+                value={senhaAtual}
+                onChange={(e) => setSenhaAtual(e.target.value)}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                required
+              />
+            </Field>
+            <Field label="Nova senha">
+              <Input
+                type="password"
+                value={novaSenha}
+                onChange={(e) => setNovaSenha(e.target.value)}
+                placeholder="Mínimo de 6 caracteres"
+                autoComplete="new-password"
+                required
+              />
+            </Field>
+            <Field label="Confirmar nova senha">
+              <Input
+                type="password"
+                value={confirmar}
+                onChange={(e) => setConfirmar(e.target.value)}
+                placeholder="Repita a nova senha"
+                autoComplete="new-password"
+                required
+              />
+            </Field>
+
+            {erro && (
+              <div className="rounded-md bg-danger-soft px-3 py-2 text-[13px] text-danger">
+                {erro}
+              </div>
+            )}
+          </form>
+        )}
+      </div>
+    </Modal>
   );
 }

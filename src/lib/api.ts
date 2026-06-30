@@ -84,6 +84,12 @@ export const api = {
       { method: "POST", body: JSON.stringify({ email, senha }) },
     ),
   me: () => req<{ id: string; nome: string; email: string; perfil: string }>("/auth/me"),
+  // Troca de senha pela tela de login (exige e-mail + senha atual).
+  alterarSenha: (email: string, senhaAtual: string, novaSenha: string) =>
+    req<{ ok: boolean }>("/auth/alterar-senha", {
+      method: "POST",
+      body: JSON.stringify({ email, senhaAtual, novaSenha }),
+    }),
 
   // Orçamentos
   listarOrcamentos: (query = "") =>
