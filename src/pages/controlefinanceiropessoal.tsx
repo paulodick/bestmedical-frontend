@@ -292,6 +292,7 @@ export function ControleFinanceiroPessoal() {
           <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-text-muted">
+                <th className="px-2 py-2">Origem</th>
                 <th className="px-2 py-2">Data</th>
                 <th className="px-2 py-2">Tipo</th>
                 <th className="px-2 py-2">Empresa / Pessoa</th>
@@ -307,6 +308,10 @@ export function ControleFinanceiroPessoal() {
                   key={l.id}
                   className="border-b border-border/60 hover:bg-surface-offset/40"
                 >
+                  {/* Pessoa (Paulo/Luisa) — dropdown no cadastro, coluna à esquerda da Data */}
+                  <td className="whitespace-nowrap px-2 py-2 font-medium text-text">
+                    {l.pessoa}
+                  </td>
                   <td className="whitespace-nowrap px-2 py-2">
                     {formatDataBR(l.data)}
                   </td>
@@ -321,15 +326,11 @@ export function ControleFinanceiroPessoal() {
                       </span>
                     )}
                   </td>
+                  {/* Empresa / Pessoa = credor ou devedor (texto livre) */}
                   <td className="px-2 py-2 font-medium text-text">
-                    {l.pessoa}
-                    {l.descricao && (
-                      <div className="text-xs text-text-muted">
-                        {l.descricao}
-                      </div>
-                    )}
+                    {l.descricao || "\u2014"}
                   </td>
-                  <td className="px-2 py-2">{l.categoria || "—"}</td>
+                  <td className="px-2 py-2">{l.categoria || "\u2014"}</td>
                   <td
                     className={`whitespace-nowrap px-2 py-2 text-right tabular-nums ${
                       l.tipo === "receita"
@@ -386,7 +387,7 @@ export function ControleFinanceiroPessoal() {
               {filtrados.length === 0 && (
                 <tr>
                   <td
-                    colSpan={podeEditar ? 7 : 6}
+                    colSpan={podeEditar ? 8 : 7}
                     className="px-2 py-8 text-center text-text-muted"
                   >
                     {carregando
@@ -427,7 +428,7 @@ export function ControleFinanceiroPessoal() {
               <option value="receita">Receita</option>
             </Select>
             <Select
-              label="Pessoa"
+              label="Origem"
               value={form.pessoa}
               onChange={(e) => setForm({ ...form, pessoa: e.target.value })}
             >
@@ -469,7 +470,8 @@ export function ControleFinanceiroPessoal() {
             ))}
           </Select>
           <Input
-            label="Descrição"
+            label="Empresa / Pessoa (credor ou devedor)"
+            placeholder="Nome de quem recebe ou paga"
             value={form.descricao || ""}
             onChange={(e) => setForm({ ...form, descricao: e.target.value })}
           />
