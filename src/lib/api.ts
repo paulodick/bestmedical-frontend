@@ -77,18 +77,18 @@ export interface ListaResposta<T> {
 }
 
 export const api = {
-  // Autenticação
-  login: (email: string, senha: string) =>
-    req<{ accessToken: string; user: { id: string; nome: string; email: string; perfil: string } }>(
+  // Autenticação (login por usuário, sem diferenciar maiúsc./minúsc.)
+  login: (usuario: string, senha: string) =>
+    req<{ accessToken: string; user: { id: string; nome: string; usuario: string; email: string; perfil: string } }>(
       "/auth/login",
-      { method: "POST", body: JSON.stringify({ email, senha }) },
+      { method: "POST", body: JSON.stringify({ usuario, senha }) },
     ),
-  me: () => req<{ id: string; nome: string; email: string; perfil: string }>("/auth/me"),
-  // Troca de senha pela tela de login (exige e-mail + senha atual).
-  alterarSenha: (email: string, senhaAtual: string, novaSenha: string) =>
+  me: () => req<{ id: string; nome: string; usuario: string; email: string; perfil: string }>("/auth/me"),
+  // Troca de senha pela tela de login (exige usuário + senha atual).
+  alterarSenha: (usuario: string, senhaAtual: string, novaSenha: string) =>
     req<{ ok: boolean }>("/auth/alterar-senha", {
       method: "POST",
-      body: JSON.stringify({ email, senhaAtual, novaSenha }),
+      body: JSON.stringify({ usuario, senhaAtual, novaSenha }),
     }),
 
   // Orçamentos

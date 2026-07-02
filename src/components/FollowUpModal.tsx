@@ -39,9 +39,9 @@ export function FollowUpModal({
   const [removendoId, setRemovendoId] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
-  // E-mail do administrador master que pode apagar qualquer comentário.
-  const emailUsuario = (user?.email || "").trim().toLowerCase();
-  const ehAdminMaster = emailUsuario === "paulo@bestmedical.com.br";
+  // Administrador master (usuário 'paulodick') pode apagar qualquer comentário.
+  const usuarioLogado = (user?.usuario || "").trim().toLowerCase();
+  const ehAdminMaster = usuarioLogado === "paulodick";
   // Define se o usuário logado pode apagar um follow-up específico.
   const podeApagar = (f: FollowUp) =>
     ehAdminMaster || (!!user?.id && f.autorId === user.id);

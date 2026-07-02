@@ -10,6 +10,7 @@ import { api, setToken, getToken, API_ENABLED } from "./lib/api";
 interface AuthUser {
   id: string;
   nome: string;
+  usuario: string;
   email: string;
   perfil: string;
 }
@@ -18,7 +19,7 @@ interface AuthCtx {
   user: AuthUser | null;
   autenticado: boolean;
   carregando: boolean; // true enquanto reidrata a sessão no boot
-  login: (email: string, senha: string) => Promise<void>;
+  login: (usuario: string, senha: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -29,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(
     API_ENABLED
       ? null
-      : { id: "demo", nome: "Demonstração", email: "demo", perfil: "admin" },
+      : { id: "demo", nome: "Demonstração", usuario: "demo", email: "demo", perfil: "admin" },
   );
 
   // No modo real, começa carregando se houver token salvo (vamos validá-lo).
@@ -68,8 +69,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     autenticado: !!user,
     carregando,
-    login: async (email, senha) => {
-      const r = await api.login(email, senha);
+    login: async (usuario, senha) => {
+      const r = await api.login(usuario, senha);
       setToken(r.accessToken);
       setUser(r.user);
     },

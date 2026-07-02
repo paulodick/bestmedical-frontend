@@ -8,7 +8,7 @@ import logoSymbol from "../assets/logo-symbol.png";
 
 export function Login() {
   const { login } = useAuth();
-  const [email, setEmail] = useState("");
+  const [usuario, setUsuario] = useState("");
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
@@ -21,7 +21,7 @@ export function Login() {
     setErro(null);
     setCarregando(true);
     try {
-      await login(email, senha);
+      await login(usuario, senha);
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Falha ao entrar");
     } finally {
@@ -58,13 +58,15 @@ export function Login() {
           </p>
 
           <div className="space-y-4">
-            <Field label="E-mail">
+            <Field label="Usuário">
               <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="nome@bestmedical.com.br"
+                type="text"
+                value={usuario}
+                onChange={(e) => setUsuario(e.target.value)}
+                placeholder="ex: paulodick"
                 autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
                 required
               />
             </Field>
@@ -120,7 +122,7 @@ export function Login() {
       <AlterarSenhaModal
         open={modalSenha}
         onClose={() => setModalSenha(false)}
-        emailInicial={email}
+        usuarioInicial={usuario}
       />
     </div>
   );
@@ -130,13 +132,13 @@ export function Login() {
 function AlterarSenhaModal({
   open,
   onClose,
-  emailInicial,
+  usuarioInicial,
 }: {
   open: boolean;
   onClose: () => void;
-  emailInicial: string;
+  usuarioInicial: string;
 }) {
-  const [email, setEmail] = useState(emailInicial);
+  const [usuario, setUsuario] = useState(usuarioInicial);
   const [senhaAtual, setSenhaAtual] = useState("");
   const [novaSenha, setNovaSenha] = useState("");
   const [confirmar, setConfirmar] = useState("");
@@ -147,14 +149,14 @@ function AlterarSenhaModal({
   // Reinicia o formulário sempre que abre, herdando o e-mail já digitado no login.
   useEffect(() => {
     if (open) {
-      setEmail(emailInicial);
+      setUsuario(usuarioInicial);
       setSenhaAtual("");
       setNovaSenha("");
       setConfirmar("");
       setErro(null);
       setSucesso(false);
     }
-  }, [open, emailInicial]);
+  }, [open, usuarioInicial]);
 
   const fechar = () => {
     onClose();
@@ -177,7 +179,7 @@ function AlterarSenhaModal({
     }
     setSalvando(true);
     try {
-      await api.alterarSenha(email.trim(), senhaAtual, novaSenha);
+      await api.alterarSenha(usuario.trim(), senhaAtual, novaSenha);
       setSucesso(true);
       setSenhaAtual("");
       setNovaSenha("");
@@ -236,15 +238,17 @@ function AlterarSenhaModal({
         ) : (
           <form id="form-alterar-senha" onSubmit={submit} className="space-y-4">
             <p className="text-[13px] text-text-muted">
-              Informe seu e-mail e a senha atual para definir uma nova senha.
+              Informe seu usuário e a senha atual para definir uma nova senha.
             </p>
-            <Field label="E-mail">
+            <Field label="Usuário">
               <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="nome@bestmedical.com.br"
+                type="text"
+                value={usuario}
+                onChange={(e) => setUsuario(e.target.value)}
+                placeholder="ex: paulodick"
                 autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
                 required
               />
             </Field>

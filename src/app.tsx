@@ -85,9 +85,9 @@ function AppShell() {
   );
   const { logout, user } = useAuth();
 
-  // CRM é exclusivo do login paulo@bestmedical.com.br.
+  // CRM é exclusivo do login 'paulodick' (admin master).
   const podeVerCrm =
-    (user?.email || "").trim().toLowerCase() === "paulo@bestmedical.com.br";
+    (user?.usuario || "").trim().toLowerCase() === "paulodick";
 
   // Se o usuário atual não pode ver o CRM mas está nessa página, volta ao Controle.
   useEffect(() => {
@@ -169,9 +169,9 @@ function AppShell() {
           </nav>
 
           <div className="border-t border-white/10 px-3 py-3">
-            {user?.email && (
+            {user?.usuario && (
               <div className="mb-2 truncate px-2 text-[11px] text-slate-400">
-                {user.email}
+                {user.usuario}
               </div>
             )}
             <div className="flex items-center gap-1">
