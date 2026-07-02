@@ -240,25 +240,32 @@ export function StatusPill({
   label,
   onClick,
   interactive,
+  tom = "success",
 }: {
   on: boolean;
   label: string;
   onClick?: () => void;
   interactive?: boolean;
+  tom?: "success" | "danger";
 }) {
+  const corPonto = on
+    ? tom === "danger"
+      ? "bg-rose-600"
+      : "bg-success"
+    : "bg-text-faint";
+
   const conteudo = (
     <>
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${
-          on ? "bg-success" : "bg-text-faint"
-        }`}
-      />
+      <span className={`h-1.5 w-1.5 rounded-full ${corPonto}`} />
       {label}
     </>
   );
 
+  const corAtivo =
+    tom === "danger" ? "bg-rose-100 text-rose-700" : "bg-success-soft text-success";
+
   const classeBase = `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-    on ? "bg-success-soft text-success" : "bg-surface-offset text-text-faint"
+    on ? corAtivo : "bg-surface-offset text-text-faint"
   }`;
 
   // Quando interativo, renderiza como botão clicável para alternar o status

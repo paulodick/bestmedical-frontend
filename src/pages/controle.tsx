@@ -711,7 +711,6 @@ export function Controle({
           <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
             <tr>
               <th className="px-3 py-2.5 font-medium">Enviado</th>
-              <th className="px-3 py-2.5 font-medium">Cancelar</th>
               <th className="px-3 py-2.5 font-medium">Nº</th>
               <th className="px-3 py-2.5 font-medium">Data</th>
               <th className="px-3 py-2.5 font-medium">Empresa</th>
@@ -723,7 +722,7 @@ export function Controle({
           <tbody>
             {filtrados.length === 0 ? (
               <tr>
-                <td colSpan={8} className="p-8 text-center text-slate-500">
+                <td colSpan={7} className="p-8 text-center text-slate-500">
                   Nenhum registro encontrado.
                 </td>
               </tr>
@@ -777,25 +776,6 @@ export function Controle({
                           {selo.texto}
                         </button>
                       </div>
-                    </td>
-                    {/* Botão Cancelar — oculta o registro aqui e no Financeiro */}
-                    <td className="px-3 py-2.5">
-                      <button
-                        type="button"
-                        onClick={() => toggleCancelado(r)}
-                        title={
-                          cancelado
-                            ? "Reativar (torna visível novamente)"
-                            : "Cancelar (oculta das tabelas)"
-                        }
-                        className={
-                          cancelado
-                            ? "inline-flex items-center justify-center rounded-md bg-rose-600 px-2.5 py-1 text-[12px] font-bold text-white transition hover:bg-rose-700"
-                            : "inline-flex items-center justify-center rounded-md border border-slate-300 px-2.5 py-1 text-[12px] font-medium text-slate-500 transition hover:border-rose-400 hover:text-rose-600"
-                        }
-                      >
-                        Cancelado
-                      </button>
                     </td>
                     <td className="px-3 py-2.5 font-medium text-slate-900">
                       {abrirEdicao ? (
@@ -919,6 +899,14 @@ export function Controle({
                             interactive
                           />
                         )}
+                        {/* Cancelado — funciona como lixeira: oculta das tabelas */}
+                        <StatusPill
+                          on={cancelado}
+                          label="Cancelado"
+                          tom="danger"
+                          onClick={() => toggleCancelado(r)}
+                          interactive
+                        />
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-center">
