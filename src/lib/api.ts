@@ -298,6 +298,11 @@ export const api = {
     req<any>(`/crm/contatos/${id}`, { method: "PUT", body: JSON.stringify(c) }),
   removerContatoCrm: (id: string) =>
     req<void>(`/crm/contatos/${id}`, { method: "DELETE" }),
+  removerContatosCrmLote: (ids: string[]) =>
+    req<{ ok: boolean; removidos: number }>("/crm/contatos/excluir-lote", {
+      method: "POST",
+      body: JSON.stringify({ ids }),
+    }),
   removerTodosContatosCrm: () =>
     req<{ ok: boolean; removidos: number }>("/crm/contatos", {
       method: "DELETE",

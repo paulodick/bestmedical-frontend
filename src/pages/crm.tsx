@@ -12,6 +12,7 @@ import {
   EyeOff,
   AlertTriangle,
 } from "lucide-react";
+import { Modal } from "../components/Modal";
 import { Block, Button } from "../components/ui";
 import { api, API_ENABLED } from "../lib/api";
 
@@ -165,10 +166,16 @@ export function Crm() {
   const [importando, setImportando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [editados, setEditados] = useState<Record<string, Contato>>({});
-  const [salvandoId, setSalvandoId] = useState<string | null>(null);
   // Modal de dupla checagem para apagar TODO o CRM.
   const [confirmarApagarTudo, setConfirmarApagarTudo] = useState(false);
   const [apagandoTudo, setApagandoTudo] = useState(false);
+  // Seleção múltipla (checkbox por linha) para exclusão em lote.
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [confirmarExcluir, setConfirmarExcluir] = useState(false);
+  const [excluindoLote, setExcluindoLote] = useState(false);
+  // Salvar alterações em lote (com pop-up de confirmação).
+  const [confirmarSalvar, setConfirmarSalvar] = useState(false);
+  const [salvandoTudo, setSalvandoTudo] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // ===== Filtros por coluna =====
@@ -253,6 +260,13 @@ export function Crm() {
     [filtrados],
   );
 
+  const totalSelecionados = selecionados.size;
+  const totalEditados = Object.keys(editados).length;
+  // Estado do checkbox "selecionar todos" (marcado / parcial).
+  const visiveisIds = filtrados.map((c) => c.id);
+  const todosVisiveisMarcados =
+    visiveisIds.length > 0 && visiveisIds.every((id) => selecionados.has(id));
+
   const algumFiltroAtivo =
     !!fNome ||
     !!fEmpresa ||
@@ -301,22 +315,29 @@ export function Crm() {
     }
   };
 
-  const salvarLinha = async (id: string) => {
-    const c = contatos.find((x) => x.id === id);
-    if (!c) return;
-    setSalvandoId(id);
+  // Salva TODAS as linhas alteradas de uma vez (chamado pelo modal de
+  // confirmação do botão "Salvar alterações" no topo).
+  const salvarAlteracoes = async () => {
+    const ids = Object.keys(editados);
+    if (!ids.length) {
+      setConfirmarSalvar(false);
+      return;
+    }
+    setSalvandoTudo(true);
     setErro(null);
+    setAviso(null);
     try {
-      await api.atualizarContatoCrm(id, semId(c));
-      setEditados((prev) => {
-        const novo = { ...prev };
-        delete novo[id];
-        return novo;
-      });
+      for (const id of ids) {
+        const c = contatos.find((x) => x.id === id);
+        if (c) await api.atualizarContatoCrm(id, semId(c));
+      }
+      setEditados({});
+      setConfirmarSalvar(false);
+      setAviso(`${ids.length} contato(s) atualizado(s) com sucesso.`);
     } catch (e: any) {
-      setErro(e?.message || "Falha ao salvar contato.");
+      setErro(e?.message || "Falha ao salvar alterações.");
     } finally {
-      setSalvandoId(null);
+      setSalvandoTudo(false);
     }
   };
 
@@ -330,14 +351,54 @@ export function Crm() {
     }
   };
 
-  const remover = async (id: string) => {
-    if (!confirm("Remover este contato?")) return;
+  // ===== Seleção múltipla =====
+  const alternarSelecionado = (id: string) =>
+    setSelecionados((prev) => {
+      const novo = new Set(prev);
+      if (novo.has(id)) novo.delete(id);
+      else novo.add(id);
+      return novo;
+    });
+
+  // Seleciona/desmarca todos os contatos VISÍVEIS (respeita os filtros).
+  const alternarSelecionarTodos = () =>
+    setSelecionados((prev) => {
+      const visiveis = filtrados.map((c) => c.id);
+      const todosMarcados =
+        visiveis.length > 0 && visiveis.every((id) => prev.has(id));
+      if (todosMarcados) {
+        const novo = new Set(prev);
+        visiveis.forEach((id) => novo.delete(id));
+        return novo;
+      }
+      return new Set([...prev, ...visiveis]);
+    });
+
+  // Exclui os selecionados em lote (chamado pelo modal de confirmação).
+  const excluirSelecionados = async () => {
+    const ids = Array.from(selecionados);
+    if (!ids.length) {
+      setConfirmarExcluir(false);
+      return;
+    }
+    setExcluindoLote(true);
     setErro(null);
+    setAviso(null);
     try {
-      await api.removerContatoCrm(id);
-      setContatos((prev) => prev.filter((c) => c.id !== id));
+      const r = await api.removerContatosCrmLote(ids);
+      setContatos((prev) => prev.filter((c) => !selecionados.has(c.id)));
+      setEditados((prev) => {
+        const novo = { ...prev };
+        ids.forEach((id) => delete novo[id]);
+        return novo;
+      });
+      setSelecionados(new Set());
+      setConfirmarExcluir(false);
+      setAviso(`${r.removidos} contato(s) excluído(s).`);
     } catch (e: any) {
-      setErro(e?.message || "Falha ao remover contato.");
+      setErro(e?.message || "Falha ao excluir contatos.");
+    } finally {
+      setExcluindoLote(false);
     }
   };
 
@@ -446,6 +507,33 @@ export function Crm() {
           <Button icon={<Plus size={16} />} onClick={adicionar} disabled={!API_ENABLED}>
             Adicionar
           </Button>
+          {/* Salvar alterações em lote (aparece quando há edições pendentes) */}
+          <Button
+            icon={
+              salvandoTudo ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Save size={16} />
+              )
+            }
+            onClick={() => setConfirmarSalvar(true)}
+            disabled={!API_ENABLED || totalEditados === 0 || salvandoTudo}
+            className="bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50"
+          >
+            {salvandoTudo
+              ? "Salvando..."
+              : `Salvar alterações${totalEditados ? ` (${totalEditados})` : ""}`}
+          </Button>
+          {/* Excluir selecionados (aparece quando há seleção) */}
+          <Button
+            variant="outline"
+            icon={<Trash2 size={16} />}
+            onClick={() => setConfirmarExcluir(true)}
+            disabled={!API_ENABLED || totalSelecionados === 0}
+            className="border-danger/40 text-danger hover:border-danger hover:bg-danger/10 hover:text-danger disabled:opacity-40"
+          >
+            Excluir{totalSelecionados ? ` (${totalSelecionados})` : ""}
+          </Button>
           <Button
             variant="outline"
             icon={<Trash2 size={16} />}
@@ -516,8 +604,16 @@ export function Crm() {
               <thead>
                 {/* Títulos (clique no título oculta a coluna) */}
                 <tr className="border-b border-divider text-left text-[12px] uppercase tracking-wide text-text-faint">
-                  {/* Ações agora à ESQUERDA, antes do checkbox Pessoal */}
-                  <th className="px-2 py-2 text-center font-semibold">Ações</th>
+                  {/* Seleção em lote: checkbox "selecionar todos" (visíveis) */}
+                  <th className="px-2 py-2 text-center font-semibold">
+                    <input
+                      type="checkbox"
+                      checked={todosVisiveisMarcados}
+                      onChange={alternarSelecionarTodos}
+                      title="Selecionar todos os contatos visíveis"
+                      className="h-4 w-4 cursor-pointer accent-primary"
+                    />
+                  </th>
                   {COLUNAS_CRM.map((col) =>
                     oculta(col.key) ? (
                       <ColunaRecolhida
@@ -539,7 +635,7 @@ export function Crm() {
                 </tr>
                 {/* Linha de filtros */}
                 <tr className="border-b border-divider bg-surface-offset/40">
-                  {/* Célula da coluna Ações (ícone de filtro) */}
+                  {/* Célula da coluna de seleção (ícone de filtro) */}
                   <th className="px-2 py-2 text-center text-text-faint">
                     <Filter size={13} className="mx-auto" />
                   </th>
@@ -619,36 +715,23 @@ export function Crm() {
                 ) : (
                   filtrados.map((c) => {
                     const sujo = !!editados[c.id];
+                    const marcado = selecionados.has(c.id);
                     return (
                       <tr
                         key={c.id}
-                        className="border-b border-divider/60 align-middle hover:bg-surface-offset/40"
+                        className={`border-b border-divider/60 align-middle hover:bg-surface-offset/40 ${
+                          marcado ? "bg-danger/5" : ""
+                        } ${sujo ? "bg-amber-500/5" : ""}`}
                       >
-                        {/* Ações à ESQUERDA: Excluir sempre; Salvar quando houver alteração */}
-                        <td className="px-2 py-1">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              title="Excluir contato"
-                              onClick={() => remover(c.id)}
-                              className="rounded-md p-1.5 text-text-muted transition hover:bg-danger/10 hover:text-danger"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                            {sujo && (
-                              <button
-                                title="Salvar"
-                                onClick={() => salvarLinha(c.id)}
-                                disabled={salvandoId === c.id}
-                                className="rounded-md p-1.5 text-emerald-600 transition hover:bg-emerald-500/10 disabled:opacity-50 dark:text-emerald-400"
-                              >
-                                {salvandoId === c.id ? (
-                                  <Loader2 size={16} className="animate-spin" />
-                                ) : (
-                                  <Save size={16} />
-                                )}
-                              </button>
-                            )}
-                          </div>
+                        {/* Seleção múltipla: checkbox no lugar dos botões antigos */}
+                        <td className="px-2 py-1 text-center">
+                          <input
+                            type="checkbox"
+                            checked={marcado}
+                            onChange={() => alternarSelecionado(c.id)}
+                            title="Selecionar para excluir"
+                            className="h-4 w-4 cursor-pointer accent-danger"
+                          />
                         </td>
                         {/* Pessoal */}
                         {oculta("pessoal") ? (
@@ -735,11 +818,12 @@ export function Crm() {
             </table>
           </div>
         )}
-        {Object.keys(editados).length > 0 && (
+        {totalEditados > 0 && (
           <div className="mt-3 flex items-center gap-2 text-[12px] text-amber-600 dark:text-amber-400">
             <Save size={14} />
-            Há alterações não salvas. Clique no ícone de salvar (verde) em cada
-            linha alterada. (O checkbox Pessoal é salvo automaticamente.)
+            Há {totalEditados} alteração(ões) não salva(s). Use o botão{" "}
+            <span className="font-semibold">Salvar alterações</span> no topo da
+            página. (O checkbox Pessoal é salvo automaticamente.)
           </div>
         )}
       </Block>
@@ -795,6 +879,88 @@ export function Crm() {
           </div>
         </div>
       )}
+
+      {/* Modal de confirmação: Salvar alterações */}
+      <Modal
+        open={confirmarSalvar}
+        onClose={() => !salvandoTudo && setConfirmarSalvar(false)}
+        title="Salvar alterações?"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmarSalvar(false)}
+              disabled={salvandoTudo}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={salvarAlteracoes}
+              disabled={salvandoTudo}
+              icon={
+                salvandoTudo ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Save size={16} />
+                )
+              }
+              className="bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800"
+            >
+              {salvandoTudo ? "Salvando..." : "Sim, salvar"}
+            </Button>
+          </>
+        }
+      >
+        <div className="px-5 py-4 text-[14px] text-text-muted">
+          Confirmar a gravação de{" "}
+          <strong className="text-text">
+            {totalEditados} alteração(ões)
+          </strong>{" "}
+          nos contatos editados?
+        </div>
+      </Modal>
+
+      {/* Modal de confirmação: Excluir selecionados */}
+      <Modal
+        open={confirmarExcluir}
+        onClose={() => !excluindoLote && setConfirmarExcluir(false)}
+        title="Excluir contatos selecionados?"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmarExcluir(false)}
+              disabled={excluindoLote}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={excluirSelecionados}
+              disabled={excluindoLote}
+              icon={
+                excluindoLote ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Trash2 size={16} />
+                )
+              }
+              className="bg-danger text-white hover:bg-danger/90 active:bg-danger/80"
+            >
+              {excluindoLote
+                ? "Excluindo..."
+                : `Sim, excluir ${totalSelecionados}`}
+            </Button>
+          </>
+        }
+      >
+        <div className="px-5 py-4 text-[14px] text-text-muted">
+          Esta ação vai remover{" "}
+          <strong className="text-text">
+            {totalSelecionados} contato(s)
+          </strong>{" "}
+          selecionado(s). Não é possível desfazer.
+        </div>
+      </Modal>
     </div>
   );
 }
