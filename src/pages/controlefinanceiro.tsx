@@ -60,7 +60,14 @@ function estaVencido(r: {
   return r.dataPagamento < hojeLocalISO();
 }
 
-export function ControleFinanceiro() {
+export function ControleFinanceiro({
+  onEdit,
+  onEditProposta,
+}: {
+  // Abrem o orçamento/proposta para edição (mesmo fluxo do Controle).
+  onEdit?: (orc: Orcamento) => void;
+  onEditProposta?: (prop: Proposta) => void;
+} = {}) {
   const { orcamentos, atualizar } = useStore();
   const { user } = useAuth();
 
@@ -436,6 +443,18 @@ export function ControleFinanceiro() {
                 const cancelado = r.cancelado;
                 const vencido = estaVencido(r) || r.atrasado;
 
+                // Número clicável: abre o orçamento/proposta correspondente
+                // (mesmo fluxo de edição do Controle). Só fica ativo quando o
+                // callback existe e o documento completo está disponível.
+                const abrirDocumento =
+                  r.tipoRegistro === "proposta"
+                    ? onEditProposta && r.proposta
+                      ? () => onEditProposta(r.proposta as Proposta)
+                      : undefined
+                    : onEdit && r.orcamento
+                      ? () => onEdit(r.orcamento as Orcamento)
+                      : undefined;
+
                 return (
                   <tr
                     key={`${r.tipoRegistro}-${r.id}`}
@@ -446,7 +465,21 @@ export function ControleFinanceiro() {
                     }
                   >
                     <td className="px-3 py-2.5 font-medium text-slate-900">
-                      {r.numero}
+                      {abrirDocumento ? (
+                        <span
+                          onClick={abrirDocumento}
+                          className="cursor-pointer text-blue-600 transition-colors hover:underline"
+                          title={
+                            r.tipoRegistro === "proposta"
+                              ? "Clique para abrir esta proposta"
+                              : "Clique para abrir este orçamento"
+                          }
+                        >
+                          {r.numero}
+                        </span>
+                      ) : (
+                        r.numero
+                      )}
                     </td>
                     <td className="px-3 py-2.5 text-slate-500">
                       {formatDataBR(r.data)}

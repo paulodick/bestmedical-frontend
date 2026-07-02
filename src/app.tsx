@@ -432,7 +432,16 @@ function AppShell() {
             ) : page === "crm" && podeVerCrm ? (
               <Crm />
             ) : page === "financeiro" && podeVerCrm ? (
-              <ControleFinanceiro />
+              <ControleFinanceiro
+                onEdit={(orc) => {
+                  setOrcamentoEdit(orc);
+                  setPage("novo");
+                }}
+                onEditProposta={(prop) => {
+                  setPropostaEdit(prop);
+                  setPage("proposta");
+                }}
+              />
             ) : page === "despesas" && podeVerCrm ? (
               <Despesas />
             ) : page === "fluxo" && podeVerCrm ? (
