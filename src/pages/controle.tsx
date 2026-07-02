@@ -28,6 +28,10 @@ import {
   maskCNPJ,
   parseMoedaInput,
   moedaParaInput,
+  hojeISO,
+  isoParaBR,
+  brParaISO,
+  maskDataBR,
 } from "../lib/format";
 import { totalFinal } from "../lib/calc";
 import { api, API_ENABLED } from "../lib/api";
@@ -251,6 +255,13 @@ export function Controle({
   // Follow-up: registro atualmente aberto no modal.
   const [followUpReg, setFollowUpReg] = useState<Registro | null>(null);
 
+  // Modal "Recebido": marca o orçamento como recebido informando a data.
+  // Essa data alimenta o Fluxo de Caixa e o Dashboard financeiro.
+  const [recebidoReg, setRecebidoReg] = useState<Registro | null>(null);
+  const [recebidoDataBR, setRecebidoDataBR] = useState("");
+  const [recebidoSalvando, setRecebidoSalvando] = useState(false);
+  const [recebidoErro, setRecebidoErro] = useState<string | null>(null);
+
   // Upload do contrato assinado: id da proposta em processamento.
   const [uploadCarregando, setUploadCarregando] = useState<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
@@ -367,6 +378,53 @@ export function Controle({
         .catch((e) =>
           console.error("Falha ao atualizar status da proposta:", e),
         );
+    }
+  };
+
+  // ===== "Recebido" (entrada de caixa do orçamento) =====
+  // Ao MARCAR: abre o modal para informar a data de recebimento.
+  // Ao DESMARCAR: limpa o recebimento (pago=false, sem data).
+  const toggleRecebido = (r: Registro) => {
+    if (r.tipoRegistro !== "orcamento") return;
+    const jaRecebido = statusOn(r, "pago");
+    if (jaRecebido) {
+      // Desmarca: remove a receita do fluxo/dashboard.
+      atualizar(r.id, {
+        pago: false,
+        dataPagamento: null,
+      } as Partial<Orcamento>);
+      return;
+    }
+    // Abre o modal sugerindo a data já existente (se houver) ou hoje.
+    const atual = (r.orcamento as unknown as { dataPagamento?: string | null })
+      ?.dataPagamento;
+    setRecebidoDataBR(isoParaBR(atual || hojeISO()));
+    setRecebidoErro(null);
+    setRecebidoReg(r);
+  };
+
+  // Confirma o recebimento gravando pago=true + dataPagamento (data informada).
+  const confirmarRecebido = () => {
+    if (!recebidoReg) return;
+    const iso = brParaISO(recebidoDataBR);
+    if (!iso) {
+      setRecebidoErro("Informe uma data válida (dd/mm/aaaa).");
+      return;
+    }
+    setRecebidoSalvando(true);
+    setRecebidoErro(null);
+    try {
+      atualizar(recebidoReg.id, {
+        pago: true,
+        dataPagamento: iso,
+      } as Partial<Orcamento>);
+      setRecebidoReg(null);
+    } catch (e) {
+      setRecebidoErro(
+        e instanceof Error ? e.message : "Não foi possível salvar.",
+      );
+    } finally {
+      setRecebidoSalvando(false);
     }
   };
 
@@ -841,6 +899,26 @@ export function Controle({
                             interactive
                           />
                         ))}
+                        {/* Selo "Recebido": entrada de caixa com data. Só orçamento. */}
+                        {r.tipoRegistro === "orcamento" && (
+                          <StatusPill
+                            on={statusOn(r, "pago")}
+                            label={
+                              statusOn(r, "pago") &&
+                              (r.orcamento as unknown as {
+                                dataPagamento?: string | null;
+                              })?.dataPagamento
+                                ? `Recebido ${formatDataBR(
+                                    (r.orcamento as unknown as {
+                                      dataPagamento: string;
+                                    }).dataPagamento,
+                                  )}`
+                                : "Recebido"
+                            }
+                            onClick={() => toggleRecebido(r)}
+                            interactive
+                          />
+                        )}
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-center">
@@ -998,6 +1076,41 @@ export function Controle({
         }
         numero={followUpReg?.numero ?? ""}
       />
+
+      {/* Modal "Recebido": informa a data em que o valor entrou no caixa. */}
+      <Modal
+        open={!!recebidoReg}
+        onClose={() => setRecebidoReg(null)}
+        title={`Marcar recebido — ${recebidoReg?.numero ?? ""}`}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRecebidoReg(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmarRecebido} disabled={recebidoSalvando}>
+              {recebidoSalvando ? "Salvando..." : "Confirmar recebimento"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-text-muted">
+            Informe a data em que o pagamento foi recebido. O valor
+            {recebidoReg ? ` (${formatBRL(recebidoReg.total)})` : ""} entrará
+            como receita no Fluxo de Caixa e no Dashboard nessa data.
+          </p>
+          <Input
+            label="Data de recebimento"
+            value={recebidoDataBR}
+            onChange={(e) => setRecebidoDataBR(maskDataBR(e.target.value))}
+            placeholder="dd/mm/aaaa"
+            inputMode="numeric"
+          />
+          {recebidoErro && (
+            <p className="text-sm text-rose-600">{recebidoErro}</p>
+          )}
+        </div>
+      </Modal>
 
       <Modal
         open={!!preview}
