@@ -23,9 +23,79 @@ interface Contato {
   empresa?: string | null;
   telefone?: string | null;
   telefonePessoal?: string | null;
+  cidade?: string | null;
+  estado?: string | null;
   email?: string | null;
   relacionamento: number;
   pessoal: boolean;
+}
+
+// Lista de UFs válidas (para o campo Estado).
+const UFS = [
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS",
+  "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC",
+  "SP", "SE", "TO",
+];
+
+// Cidade -> UF (auto-preenche o Estado ao digitar a Cidade). Chaves
+// normalizadas (minúsculas, sem acento). Cidade que existe em várias UFs
+// tem valor null -> preenche a cidade mas deixa o estado para ajuste manual.
+const CIDADE_UF: Record<string, string | null> = {
+  "sao paulo": "SP", campinas: "SP", santos: "SP", guarulhos: "SP",
+  osasco: "SP", "sao bernardo": "SP", "santo andre": "SP", jundiai: "SP",
+  sorocaba: "SP", "ribeirao preto": "SP", bauru: "SP", piracicaba: "SP",
+  "sao jose do rio preto": "SP", "sao jose dos campos": "SP", marilia: "SP",
+  aracatuba: "SP", franca: "SP",
+  "rio de janeiro": "RJ", niteroi: "RJ", "nova iguacu": "RJ",
+  "duque de caxias": "RJ", petropolis: "RJ", "volta redonda": "RJ",
+  macae: "RJ", angra: "RJ",
+  "belo horizonte": "MG", contagem: "MG", uberlandia: "MG",
+  "juiz de fora": "MG", betim: "MG", "montes claros": "MG", uberaba: "MG",
+  divinopolis: "MG", ipatinga: "MG", "pocos de caldas": "MG",
+  curitiba: "PR", londrina: "PR", maringa: "PR", "ponta grossa": "PR",
+  "foz do iguacu": "PR", "sao jose dos pinhais": "PR",
+  "porto alegre": "RS", "caxias do sul": "RS", pelotas: "RS", canoas: "RS",
+  gravatai: "RS", "novo hamburgo": "RS",
+  florianopolis: "SC", joinville: "SC", blumenau: "SC", chapeco: "SC",
+  criciuma: "SC", itajai: "SC", "balneario camboriu": "SC",
+  salvador: "BA", "feira de santana": "BA", "vitoria da conquista": "BA",
+  camacari: "BA", ilheus: "BA", itabuna: "BA", eunapolis: "BA", jequie: "BA",
+  irece: "BA", barreiras: "BA", "simoes filho": "BA",
+  recife: "PE", jaboatao: "PE", olinda: "PE", caruaru: "PE", petrolina: "PE",
+  fortaleza: "CE", "juazeiro do norte": "CE", sobral: "CE", maracanau: "CE",
+  arapiraca: "AL", maceio: "AL",
+  "joao pessoa": "PB", "campina grande": "PB",
+  natal: "RN", mossoro: "RN",
+  teresina: "PI", parnaiba: "PI",
+  "sao luis": "MA", imperatriz: "MA",
+  aracaju: "SE",
+  goiania: "GO", anapolis: "GO", "aparecida de goiania": "GO",
+  brasilia: "DF",
+  cuiaba: "MT", "varzea grande": "MT", rondonopolis: "MT",
+  "campo grande": "MS", dourados: "MS",
+  belem: "PA", ananindeua: "PA", maraba: "PA", castanhal: "PA",
+  manaus: "AM",
+  vitoria: "ES", "vila velha": "ES", cariacica: "ES",
+  "porto velho": "RO", "rio branco": "AC", "boa vista": "RR", macapa: "AP",
+};
+
+// Normaliza (minúsculas, sem acento) para buscar no mapa Cidade->UF.
+function normalizarCidade(s: string): string {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+// Sugere a UF a partir do nome da cidade. null = ambígua ou desconhecida.
+function ufDaCidade(cidade: string): string | null {
+  const chave = normalizarCidade(cidade);
+  if (!chave) return null;
+  if (Object.prototype.hasOwnProperty.call(CIDADE_UF, chave)) {
+    return CIDADE_UF[chave];
+  }
+  return null;
 }
 
 // Rótulos do nível de relacionamento (1 a 5).
@@ -146,6 +216,8 @@ type ColunaCrm =
   | "empresa"
   | "telefone"
   | "telefonePessoal"
+  | "cidade"
+  | "estado"
   | "email"
   | "relacionamento";
 
@@ -155,6 +227,8 @@ const COLUNAS_CRM: { key: ColunaCrm; label: string }[] = [
   { key: "nome", label: "Nome" },
   { key: "telefone", label: "Telefone" },
   { key: "telefonePessoal", label: "Telefone Pessoal" },
+  { key: "cidade", label: "Cidade" },
+  { key: "estado", label: "Estado" },
   { key: "email", label: "E-mail" },
   { key: "relacionamento", label: "Relacionamento" },
 ];
@@ -183,6 +257,8 @@ export function Crm() {
   const [fEmpresa, setFEmpresa] = useState("");
   const [fTelefone, setFTelefone] = useState("");
   const [fTelefonePessoal, setFTelefonePessoal] = useState("");
+  const [fCidade, setFCidade] = useState("");
+  const [fEstado, setFEstado] = useState("");
   const [fEmail, setFEmail] = useState("");
   const [fRelacionamento, setFRelacionamento] = useState<number | "">("");
   // Por padrão mostra apenas os contatos NÃO pessoais (profissionais).
@@ -238,6 +314,8 @@ export function Crm() {
         !norm(c.telefonePessoal).includes(fTelefonePessoal.toLowerCase())
       )
         return false;
+      if (fCidade && !norm(c.cidade).includes(fCidade.toLowerCase())) return false;
+      if (fEstado && norm(c.estado) !== fEstado.toLowerCase()) return false;
       if (fEmail && !norm(c.email).includes(fEmail.toLowerCase())) return false;
       if (fRelacionamento !== "" && c.relacionamento !== fRelacionamento) return false;
       if (fPessoal === "desmarcados" && c.pessoal) return false;
@@ -250,6 +328,8 @@ export function Crm() {
     fEmpresa,
     fTelefone,
     fTelefonePessoal,
+    fCidade,
+    fEstado,
     fEmail,
     fRelacionamento,
     fPessoal,
@@ -272,6 +352,8 @@ export function Crm() {
     !!fEmpresa ||
     !!fTelefone ||
     !!fTelefonePessoal ||
+    !!fCidade ||
+    !!fEstado ||
     !!fEmail ||
     fRelacionamento !== "" ||
     fPessoal !== "desmarcados";
@@ -281,19 +363,31 @@ export function Crm() {
     setFEmpresa("");
     setFTelefone("");
     setFTelefonePessoal("");
+    setFCidade("");
+    setFEstado("");
     setFEmail("");
     setFRelacionamento("");
     setFPessoal("desmarcados");
   };
 
   // Aplica edição em memória; só persiste ao salvar a linha.
+  // Ao editar a Cidade, tenta preencher o Estado automaticamente
+  // (cidade ambígua -> deixa o estado como está para ajuste manual).
   const editarCampo = (id: string, campo: keyof Contato, valor: any) => {
+    const extra: Partial<Contato> = {};
+    if (campo === "cidade") {
+      const uf = ufDaCidade(String(valor || ""));
+      if (uf) extra.estado = uf;
+    }
     setContatos((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, [campo]: valor } : c)),
+      prev.map((c) => (c.id === id ? { ...c, [campo]: valor, ...extra } : c)),
     );
     setEditados((prev) => {
       const base = contatos.find((c) => c.id === id)!;
-      return { ...prev, [id]: { ...base, ...prev[id], [campo]: valor } };
+      return {
+        ...prev,
+        [id]: { ...base, ...prev[id], [campo]: valor, ...extra },
+      };
     });
   };
 
@@ -673,6 +767,31 @@ export function Crm() {
                       <FiltroInput value={fTelefonePessoal} onChange={setFTelefonePessoal} placeholder="Filtrar" />
                     </th>
                   )}
+                  {oculta("cidade") ? (
+                    <ColunaRecolhida as="th" label="Cidade" onMostrar={() => toggleColuna("cidade")} />
+                  ) : (
+                    <th className="px-1 py-1.5">
+                      <FiltroInput value={fCidade} onChange={setFCidade} placeholder="Filtrar cidade" />
+                    </th>
+                  )}
+                  {oculta("estado") ? (
+                    <ColunaRecolhida as="th" label="Estado" onMostrar={() => toggleColuna("estado")} />
+                  ) : (
+                    <th className="px-1 py-1.5">
+                      <select
+                        value={fEstado}
+                        onChange={(e) => setFEstado(e.target.value)}
+                        className="w-full cursor-pointer rounded-md border border-border bg-surface px-2 py-1.5 text-[12px] font-normal text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      >
+                        <option value="">Todos</option>
+                        {UFS.map((uf) => (
+                          <option key={uf} value={uf}>
+                            {uf}
+                          </option>
+                        ))}
+                      </select>
+                    </th>
+                  )}
                   {oculta("email") ? (
                     <ColunaRecolhida as="th" label="E-mail" onMostrar={() => toggleColuna("email")} />
                   ) : (
@@ -780,6 +899,36 @@ export function Crm() {
                               value={c.telefonePessoal || ""}
                               onChange={(v) => editarCampo(c.id, "telefonePessoal", v)}
                             />
+                          </td>
+                        )}
+                        {/* Cidade (preenche o Estado automaticamente) */}
+                        {oculta("cidade") ? (
+                          <ColunaRecolhida label="Cidade" onMostrar={() => toggleColuna("cidade")} />
+                        ) : (
+                          <td className="px-1 py-1">
+                            <CelulaInput
+                              value={c.cidade || ""}
+                              onChange={(v) => editarCampo(c.id, "cidade", v)}
+                            />
+                          </td>
+                        )}
+                        {/* Estado (UF) */}
+                        {oculta("estado") ? (
+                          <ColunaRecolhida label="Estado" onMostrar={() => toggleColuna("estado")} />
+                        ) : (
+                          <td className="px-1 py-1">
+                            <select
+                              value={c.estado || ""}
+                              onChange={(e) => editarCampo(c.id, "estado", e.target.value || null)}
+                              className="w-full cursor-pointer rounded-md border border-transparent bg-transparent px-2 py-1.5 text-[13px] text-text outline-none transition hover:border-border focus:border-primary focus:bg-surface focus:ring-2 focus:ring-primary/20"
+                            >
+                              <option value="">—</option>
+                              {UFS.map((uf) => (
+                                <option key={uf} value={uf}>
+                                  {uf}
+                                </option>
+                              ))}
+                            </select>
                           </td>
                         )}
                         {/* E-mail */}
@@ -972,6 +1121,8 @@ function semId(c: Contato) {
     empresa: c.empresa || undefined,
     telefone: c.telefone || undefined,
     telefonePessoal: c.telefonePessoal || undefined,
+    cidade: c.cidade || undefined,
+    estado: c.estado || undefined,
     email: c.email || undefined,
     relacionamento: c.relacionamento,
     pessoal: c.pessoal,
