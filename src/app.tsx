@@ -7,6 +7,8 @@ import { ControleFinanceiro } from "./pages/controlefinanceiro";
 import { Despesas } from "./pages/despesas";
 import { FluxoCaixa } from "./pages/fluxocaixa";
 import { DashboardFinanceiro } from "./pages/dashboardfinanceiro";
+import { ControleFinanceiroPessoal } from "./pages/controlefinanceiropessoal";
+import { DashboardFinanceiroPessoal } from "./pages/dashboardfinanceiropessoal";
 import { Crm } from "./pages/crm";
 import { OrdemServicoPage } from "./pages/ordemservico";
 import { PropostaContrato } from "./pages/propostacontrato";
@@ -24,6 +26,8 @@ type Page =
   | "despesas"
   | "fluxo"
   | "dashboard-fin"
+  | "pessoal"
+  | "dashboard-pessoal"
   | "crm"
   | "os"
   | "proposta"
@@ -36,6 +40,9 @@ const PAGINAS_FINANCEIRO: Page[] = [
   "fluxo",
   "dashboard-fin",
 ];
+
+// Páginas do submenu "Controle Financeiro Pessoal" (exclusivo paulodick).
+const PAGINAS_PESSOAL: Page[] = ["pessoal", "dashboard-pessoal"];
 
 function Logo() {
   return (
@@ -126,6 +133,8 @@ function AppShell() {
   const [page, setPage] = useState<Page>("controle");
   // Submenu "Controle Financeiro" aberto/fechado na sidebar.
   const [financeiroAberto, setFinanceiroAberto] = useState(false);
+  // Submenu "Controle Financeiro Pessoal" aberto/fechado na sidebar.
+  const [pessoalAberto, setPessoalAberto] = useState(false);
   const [orcamentoEdit, setOrcamentoEdit] = useState<Orcamento | null>(null);
   const [propostaEdit, setPropostaEdit] = useState<Proposta | null>(null);
   // Id do orçamento cuja OS deve ser aberta
@@ -143,7 +152,9 @@ function AppShell() {
   // Se o usuário atual não pode ver o CRM mas está nessa página, volta ao Controle.
   useEffect(() => {
     if (
-      (page === "crm" || PAGINAS_FINANCEIRO.includes(page)) &&
+      (page === "crm" ||
+        PAGINAS_FINANCEIRO.includes(page) ||
+        PAGINAS_PESSOAL.includes(page)) &&
       !podeVerCrm
     )
       setPage("controle");
@@ -152,6 +163,7 @@ function AppShell() {
   // Mantém o submenu financeiro aberto quando uma de suas páginas está ativa.
   useEffect(() => {
     if (PAGINAS_FINANCEIRO.includes(page)) setFinanceiroAberto(true);
+    if (PAGINAS_PESSOAL.includes(page)) setPessoalAberto(true);
   }, [page]);
 
   useEffect(() => {
@@ -265,6 +277,50 @@ function AppShell() {
                     <SubNavButton
                       active={page === "dashboard-fin"}
                       onClick={() => setPage("dashboard-fin")}
+                      icon={<LayoutDashboard size={16} />}
+                    >
+                      Dashboard
+                    </SubNavButton>
+                  </div>
+                )}
+              </div>
+            )}
+            {/* Submenu Controle Financeiro Pessoal (exclusivo paulodick) */}
+            {podeVerCrm && (
+              <div>
+                <button
+                  onClick={() => setPessoalAberto((v) => !v)}
+                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+                    PAGINAS_PESSOAL.includes(page)
+                      ? "text-white"
+                      : "text-slate-300 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <span className="shrink-0">
+                    <Wallet size={18} />
+                  </span>
+                  <span className="flex-1 text-left">
+                    Controle Financeiro Pessoal
+                  </span>
+                  <ChevronDown
+                    size={16}
+                    className={`shrink-0 transition-transform ${
+                      pessoalAberto ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+                {pessoalAberto && (
+                  <div className="mt-1 flex flex-col gap-0.5 border-l border-white/10 pl-3">
+                    <SubNavButton
+                      active={page === "pessoal"}
+                      onClick={() => setPage("pessoal")}
+                      icon={<Coins size={16} />}
+                    >
+                      Lançamentos
+                    </SubNavButton>
+                    <SubNavButton
+                      active={page === "dashboard-pessoal"}
+                      onClick={() => setPage("dashboard-pessoal")}
                       icon={<LayoutDashboard size={16} />}
                     >
                       Dashboard
@@ -448,6 +504,10 @@ function AppShell() {
               <FluxoCaixa />
             ) : page === "dashboard-fin" && podeVerCrm ? (
               <DashboardFinanceiro />
+            ) : page === "pessoal" && podeVerCrm ? (
+              <ControleFinanceiroPessoal />
+            ) : page === "dashboard-pessoal" && podeVerCrm ? (
+              <DashboardFinanceiroPessoal />
             ) : (
               <Controle
                 onEdit={(orc) => {

@@ -5,18 +5,49 @@ import {
   ChevronDown,
   Calendar,
   ClipboardList,
+  Plus,
+  Pencil,
+  Trash2,
+  CheckCircle2,
 } from "lucide-react";
 import { useStore } from "../store";
 import { useAuth } from "../auth";
 import type { Orcamento, Proposta } from "../types";
 import { Modal } from "../components/Modal";
-import { Button, Input, Select } from "../components/ui";
-import { formatBRL, formatDataBR } from "../lib/format";
+import { Button, Input, Select, Textarea } from "../components/ui";
+import { formatBRL, formatDataBR, hojeISO } from "../lib/format";
 import { totalFinal } from "../lib/calc";
 import { api, API_ENABLED } from "../lib/api";
 
-// ===== Registro unificado (orçamento | proposta) =====
-type TipoRegistro = "orcamento" | "proposta";
+// ===== Recebível avulso (manual) exposto pela API =====
+interface Recebivel {
+  id: string;
+  data: string;
+  empresa: string;
+  cnpj: string | null;
+  descricao: string | null;
+  valor: number;
+  pago: boolean;
+  dataPagamento: string | null;
+  observacoes: string | null;
+}
+
+// Estado inicial de um recebível avulso novo.
+function recebivelVazio(): Omit<Recebivel, "id"> {
+  return {
+    data: hojeISO(),
+    empresa: "",
+    cnpj: "",
+    descricao: "",
+    valor: 0,
+    pago: false,
+    dataPagamento: null,
+    observacoes: "",
+  };
+}
+
+// ===== Registro unificado (orçamento | proposta | recebível avulso) =====
+type TipoRegistro = "orcamento" | "proposta" | "recebivel";
 interface Registro {
   tipoRegistro: TipoRegistro;
   id: string;
@@ -31,6 +62,7 @@ interface Registro {
   cancelado: boolean;
   orcamento?: Orcamento;
   proposta?: Proposta;
+  recebivel?: Recebivel;
 }
 
 // Status financeiros disponíveis no filtro (checkboxes).
@@ -75,6 +107,17 @@ export function ControleFinanceiro({
   const podeEditar = (user?.usuario || "").toLowerCase() === "paulodick";
 
   const [propostas, setPropostas] = useState<Proposta[]>([]);
+  // Recebíveis avulsos (manuais), carregados da API.
+  const [recebiveis, setRecebiveis] = useState<Recebivel[]>([]);
+
+  // Modal de novo/editar recebível avulso.
+  const [recModalAberto, setRecModalAberto] = useState(false);
+  const [recEditId, setRecEditId] = useState<string | null>(null);
+  const [recForm, setRecForm] = useState<Omit<Recebivel, "id">>(
+    recebivelVazio(),
+  );
+  const [recSalvando, setRecSalvando] = useState(false);
+  const [recExcluirId, setRecExcluirId] = useState<string | null>(null);
 
   // Filtros
   const [busca, setBusca] = useState("");
@@ -99,8 +142,18 @@ export function ControleFinanceiro({
       .catch((e) => console.error("Falha ao carregar propostas:", e));
   };
 
+  // Carrega os recebíveis avulsos da API.
+  const recarregarRecebiveis = () => {
+    if (!API_ENABLED) return;
+    api
+      .listarRecebiveis("?pageSize=5000")
+      .then((r) => setRecebiveis((r.data as Recebivel[]) || []))
+      .catch((e) => console.error("Falha ao carregar recebíveis:", e));
+  };
+
   useEffect(() => {
     recarregarPropostas();
+    recarregarRecebiveis();
   }, []);
 
   // Fecha o dropdown de status ao clicar fora.
@@ -122,6 +175,23 @@ export function ControleFinanceiro({
   ) => {
     if (r.tipoRegistro === "orcamento") {
       atualizar(r.id, patch as Partial<Orcamento>);
+      return;
+    }
+    // Recebível avulso: atualiza otimista e persiste via API.
+    if (r.tipoRegistro === "recebivel") {
+      setRecebiveis((prev) =>
+        prev.map((x) => (x.id === r.id ? { ...x, ...patch } : x)),
+      );
+      if (API_ENABLED) {
+        api
+          .atualizarRecebivel(r.id, patch)
+          .then((rec) =>
+            setRecebiveis((prev) =>
+              prev.map((x) => (x.id === r.id ? (rec as Recebivel) : x)),
+            ),
+          )
+          .catch((e) => console.error("Falha ao atualizar recebível:", e));
+      }
       return;
     }
     setPropostas((prev) =>
@@ -177,6 +247,73 @@ export function ControleFinanceiro({
     setEditId(null);
   };
 
+  // ===== Recebíveis avulsos: modal e ações =====
+  const abrirNovoRecebivel = () => {
+    setRecEditId(null);
+    setRecForm(recebivelVazio());
+    setRecModalAberto(true);
+  };
+
+  const abrirEdicaoRecebivel = (rec: Recebivel) => {
+    setRecEditId(rec.id);
+    setRecForm({
+      data: rec.data,
+      empresa: rec.empresa,
+      cnpj: rec.cnpj || "",
+      descricao: rec.descricao || "",
+      valor: rec.valor,
+      pago: rec.pago,
+      dataPagamento: rec.dataPagamento,
+      observacoes: rec.observacoes || "",
+    });
+    setRecModalAberto(true);
+  };
+
+  const salvarRecebivel = async () => {
+    if (!recForm.empresa.trim()) {
+      alert("Informe a empresa/cliente do recebível.");
+      return;
+    }
+    setRecSalvando(true);
+    const payload = {
+      ...recForm,
+      cnpj: recForm.cnpj || undefined,
+      descricao: recForm.descricao || undefined,
+      observacoes: recForm.observacoes || undefined,
+      dataPagamento: recForm.dataPagamento || undefined,
+    };
+    try {
+      if (recEditId) await api.atualizarRecebivel(recEditId, payload);
+      else await api.criarRecebivel(payload);
+      setRecModalAberto(false);
+      recarregarRecebiveis();
+    } catch (e) {
+      alert("Erro ao salvar o recebível: " + (e as Error).message);
+    } finally {
+      setRecSalvando(false);
+    }
+  };
+
+  const confirmarExclusaoRecebivel = async () => {
+    if (!recExcluirId) return;
+    try {
+      await api.removerRecebivel(recExcluirId);
+      setRecExcluirId(null);
+      recarregarRecebiveis();
+    } catch (e) {
+      alert("Erro ao excluir: " + (e as Error).message);
+    }
+  };
+
+  // Registrar pagamento: marca Pago e define a data de pagamento (hoje se vazia).
+  const registrarPagamento = (r: Registro) => {
+    salvarStatus(r, {
+      pago: true,
+      atrasado: false,
+      dataPagamento: r.dataPagamento || hojeISO(),
+    });
+  };
+
   // ===== Une orçamentos + propostas em registros =====
   const registros = useMemo<Registro[]>(() => {
     const dosOrc: Registro[] = orcamentos.map((o) => ({
@@ -212,8 +349,23 @@ export function ControleFinanceiro({
         cancelado: !!p.cancelado,
         proposta: p,
       }));
-    return [...dosOrc, ...dasProp];
-  }, [orcamentos, propostas]);
+    // Recebíveis avulsos (manuais) entram diretamente na lista.
+    const dosRec: Registro[] = recebiveis.map((rec) => ({
+      tipoRegistro: "recebivel",
+      id: rec.id,
+      numero: "\u2014",
+      data: rec.data,
+      empresa: rec.empresa,
+      cnpj: rec.cnpj || "",
+      total: rec.valor,
+      dataPagamento: rec.dataPagamento ?? null,
+      pago: !!rec.pago,
+      atrasado: false,
+      cancelado: false,
+      recebivel: rec,
+    }));
+    return [...dosOrc, ...dasProp, ...dosRec];
+  }, [orcamentos, propostas, recebiveis]);
 
   // ===== Auto-atraso: marca Atrasado quando a data venceu e não foi pago =====
   // Roda quando os registros mudam. Persiste apenas o que precisa mudar.
@@ -325,13 +477,24 @@ export function ControleFinanceiro({
             Recebimentos por orçamento e contrato.
           </p>
         </div>
-        <Button
-          variant="primary"
-          icon={<ClipboardList size={16} />}
-          onClick={() => setResumoAberto(true)}
-        >
-          Resumo
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {podeEditar && (
+            <Button
+              variant="primary"
+              icon={<Plus size={16} />}
+              onClick={abrirNovoRecebivel}
+            >
+              Novo recebível
+            </Button>
+          )}
+          <Button
+            variant="secondary"
+            icon={<ClipboardList size={16} />}
+            onClick={() => setResumoAberto(true)}
+          >
+            Resumo
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -428,12 +591,13 @@ export function ControleFinanceiro({
               <th className="px-3 py-2.5 font-medium">Valor Total</th>
               <th className="px-3 py-2.5 font-medium">Data Pagamento</th>
               <th className="px-3 py-2.5 font-medium">Status</th>
+              <th className="px-3 py-2.5 text-center font-medium">Ações</th>
             </tr>
           </thead>
           <tbody>
             {filtrados.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-slate-500">
+                <td colSpan={7} className="p-8 text-center text-slate-500">
                   Nenhum recebimento pendente.
                 </td>
               </tr>
@@ -589,6 +753,43 @@ export function ControleFinanceiro({
                         </button>
                       </div>
                     </td>
+                    {/* Ações: registrar pagamento (todos) + editar/excluir (avulsos) */}
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center justify-center gap-1">
+                        {podeEditar && !r.pago && !cancelado && (
+                          <button
+                            type="button"
+                            onClick={() => registrarPagamento(r)}
+                            title="Registrar pagamento"
+                            className="rounded-md p-1.5 text-emerald-600 transition hover:bg-emerald-50"
+                          >
+                            <CheckCircle2 size={16} />
+                          </button>
+                        )}
+                        {podeEditar && r.tipoRegistro === "recebivel" && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                abrirEdicaoRecebivel(r.recebivel as Recebivel)
+                              }
+                              title="Editar recebível"
+                              className="rounded-md p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setRecExcluirId(r.id)}
+                              title="Excluir recebível"
+                              className="rounded-md p-1.5 text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 );
               })
@@ -678,6 +879,129 @@ export function ControleFinanceiro({
             </table>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal criar/editar recebível avulso */}
+      <Modal
+        open={recModalAberto}
+        onClose={() => setRecModalAberto(false)}
+        title={recEditId ? "Editar recebível" : "Novo recebível"}
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setRecModalAberto(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={salvarRecebivel} disabled={recSalvando}>
+              {recSalvando ? "Salvando..." : "Salvar"}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Input
+              label="Data"
+              type="date"
+              value={recForm.data}
+              onChange={(e) => setRecForm({ ...recForm, data: e.target.value })}
+            />
+            <Input
+              label="Valor (R$)"
+              type="number"
+              step="0.01"
+              min="0"
+              value={recForm.valor || ""}
+              onChange={(e) =>
+                setRecForm({ ...recForm, valor: Number(e.target.value) || 0 })
+              }
+            />
+          </div>
+          <Input
+            label="Empresa / Cliente"
+            value={recForm.empresa}
+            onChange={(e) =>
+              setRecForm({ ...recForm, empresa: e.target.value })
+            }
+            required
+          />
+          <Input
+            label="CNPJ (opcional)"
+            value={recForm.cnpj || ""}
+            onChange={(e) => setRecForm({ ...recForm, cnpj: e.target.value })}
+          />
+          <Input
+            label="Descrição"
+            value={recForm.descricao || ""}
+            onChange={(e) =>
+              setRecForm({ ...recForm, descricao: e.target.value })
+            }
+          />
+          <div className="rounded-md border border-border p-3">
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={recForm.pago}
+                onChange={(e) =>
+                  setRecForm({
+                    ...recForm,
+                    pago: e.target.checked,
+                    dataPagamento: e.target.checked
+                      ? recForm.dataPagamento || hojeISO()
+                      : null,
+                  })
+                }
+              />
+              <span className="font-medium text-text">Já foi recebido</span>
+            </label>
+            {recForm.pago && (
+              <div className="mt-3">
+                <Input
+                  label="Data do recebimento"
+                  type="date"
+                  value={recForm.dataPagamento || ""}
+                  onChange={(e) =>
+                    setRecForm({ ...recForm, dataPagamento: e.target.value })
+                  }
+                />
+              </div>
+            )}
+          </div>
+          <Textarea
+            label="Observações"
+            rows={2}
+            value={recForm.observacoes || ""}
+            onChange={(e) =>
+              setRecForm({ ...recForm, observacoes: e.target.value })
+            }
+          />
+        </div>
+      </Modal>
+
+      {/* Modal confirmar exclusão de recebível */}
+      <Modal
+        open={!!recExcluirId}
+        onClose={() => setRecExcluirId(null)}
+        title="Excluir recebível"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setRecExcluirId(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={confirmarExclusaoRecebivel}
+              icon={<X size={16} />}
+              className="!bg-red-600 !text-white hover:!bg-red-700"
+            >
+              Excluir
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-text">
+          Tem certeza que deseja excluir este recebível avulso? Esta ação não
+          pode ser desfeita.
+        </p>
       </Modal>
     </div>
   );

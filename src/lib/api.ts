@@ -340,6 +340,48 @@ export const api = {
       despesasPorCategoria: { categoria: string; valor: number }[];
     }>("/financeiro/resumo"),
 
+  // ===== Recebíveis avulsos (manuais) =====
+  listarRecebiveis: (query = "") =>
+    req<ListaResposta<any>>(`/financeiro/recebiveis${query}`),
+  criarRecebivel: (d: any) =>
+    req<any>("/financeiro/recebiveis", {
+      method: "POST",
+      body: JSON.stringify(d),
+    }),
+  atualizarRecebivel: (id: string, d: any) =>
+    req<any>(`/financeiro/recebiveis/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(d),
+    }),
+  removerRecebivel: (id: string) =>
+    req<{ ok: boolean }>(`/financeiro/recebiveis/${id}`, { method: "DELETE" }),
+
+  // ===== Controle Financeiro Pessoal (exclusivo admin master) =====
+  listarPessoal: (query = "") =>
+    req<ListaResposta<any>>(`/financeiro/pessoal${query}`),
+  criarPessoal: (d: any) =>
+    req<any>("/financeiro/pessoal", { method: "POST", body: JSON.stringify(d) }),
+  atualizarPessoal: (id: string, d: any) =>
+    req<any>(`/financeiro/pessoal/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(d),
+    }),
+  removerPessoal: (id: string) =>
+    req<{ ok: boolean }>(`/financeiro/pessoal/${id}`, { method: "DELETE" }),
+  resumoPessoal: () =>
+    req<{
+      kpis: {
+        receitaRecebida: number;
+        receitaAberta: number;
+        despesaTotal: number;
+        despesaPaga: number;
+        despesaPendente: number;
+        resultado: number;
+      };
+      fluxo: { mes: string; entrada: number; saida: number; saldo: number }[];
+      despesasPorCategoria: { categoria: string; valor: number }[];
+    }>("/financeiro/pessoal/resumo"),
+
   // CEP
   consultarCep: (cep: string) =>
     req<{ cep: string; endereco: string; bairro: string; cidade: string; estado: string }>(
