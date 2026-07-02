@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Pencil,
   Check,
+  Trash2,
 } from "lucide-react";
 import { useStore } from "../store";
 import { useAuth } from "../auth";
@@ -128,7 +129,7 @@ export function Controle({
   onAbrirOs,
   onAbrirContrato,
 }: ControleProps = {}) {
-  const { orcamentos, atualizar, salvar } = useStore();
+  const { orcamentos, atualizar, salvar, remover } = useStore();
   const { user } = useAuth();
 
   // Só o admin master (paulodick) pode editar os campos direto na tabela.
@@ -164,6 +165,29 @@ export function Controle({
   const cancelarEdicao = () => {
     setEditId(null);
     setInlineErro(null);
+  };
+
+  // Exclui um registro (com confirmação). Só paulodick vê o botão.
+  const excluirRegistro = async (r: Registro) => {
+    const ok = window.confirm(
+      `Excluir definitivamente ${r.numero}${
+        r.empresa ? ` (${r.empresa})` : ""
+      }? Esta ação não pode ser desfeita.`,
+    );
+    if (!ok) return;
+    setInlineErro(null);
+    try {
+      if (r.tipoRegistro === "orcamento") {
+        remover(r.id); // store faz DELETE /orcamentos/:id e atualiza a lista
+      } else {
+        await api.removerProposta(r.id);
+        setPropostas((prev) => prev.filter((p) => p.id !== r.id));
+      }
+    } catch (e) {
+      setInlineErro(
+        e instanceof Error ? e.message : "Não foi possível excluir o registro.",
+      );
+    }
   };
 
   // Salva os campos editados enviando o objeto COMPLETO (PUT), preservando
@@ -615,16 +639,28 @@ export function Controle({
                     key={`${r.tipoRegistro}-${r.id}`}
                     className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50"
                   >
-                    {/* Coluna Enviado — selo de dias + abre o follow-up */}
+                    {/* Coluna Enviado — botão excluir (paulodick) + selo/follow-up */}
                     <td className="px-3 py-2.5">
-                      <button
-                        type="button"
-                        onClick={() => setFollowUpReg(r)}
-                        title="Registrar / ver follow-up"
-                        className={`inline-flex items-center justify-center rounded-md px-2.5 py-1 text-[12px] font-semibold transition hover:ring-2 hover:ring-primary/30 ${selo.classe}`}
-                      >
-                        {selo.texto}
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {podeEditarInline && (
+                          <button
+                            type="button"
+                            onClick={() => excluirRegistro(r)}
+                            title="Excluir"
+                            className="inline-flex items-center justify-center rounded-md p-1 text-text-muted transition hover:bg-rose-50 hover:text-rose-600"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setFollowUpReg(r)}
+                          title="Registrar / ver follow-up"
+                          className={`inline-flex items-center justify-center rounded-md px-2.5 py-1 text-[12px] font-semibold transition hover:ring-2 hover:ring-primary/30 ${selo.classe}`}
+                        >
+                          {selo.texto}
+                        </button>
+                      </div>
                     </td>
                     <td className="px-3 py-2.5 font-medium text-slate-900">
                       {abrirEdicao ? (
