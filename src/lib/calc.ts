@@ -13,10 +13,17 @@ export const valorDesconto = (
   o: Pick<Orcamento, "itens" | "descontoPercent">
 ): number => totalBruto(o) * ((o.descontoPercent || 0) / 100);
 
-// Total final (com desconto aplicado) — este é o valor mostrado ao cliente
+// Total final (com desconto aplicado) — este é o valor mostrado ao cliente.
+// Quando há um total manual (override > 0), ele prevalece sobre o cálculo
+// baseado nos itens/desconto (usado para correção rápida no Controle).
 export const totalFinal = (
-  o: Pick<Orcamento, "itens" | "descontoPercent">
-): number => totalBruto(o) - valorDesconto(o);
+  o: Pick<Orcamento, "itens" | "descontoPercent"> & {
+    totalManual?: number | null;
+  }
+): number => {
+  if (o.totalManual != null && o.totalManual > 0) return o.totalManual;
+  return totalBruto(o) - valorDesconto(o);
+};
 
 // ===== Parcelamento / Controle de Pagamento =====
 

@@ -108,6 +108,9 @@ export interface Orcamento {
   // Bloco 6 — Itens + resumo
   itens: ItemOrcamento[];
   descontoPercent: number;
+  // Total manual (override): quando definido (> 0), prevalece sobre o total
+  // calculado pelos itens/desconto. Usado para correção rápida no Controle.
+  totalManual?: number | null;
   numParcelas: number;       // campo Parcelamento (padrão 1)
   parcelas: Parcela[];       // Controle de Pagamento
   // Bloco 7 — Finalização
@@ -223,6 +226,8 @@ export interface Proposta {
   subtotal: number;
   desconto: number;
   total: number;
+  // Total manual (override): quando definido (> 0), prevalece sobre o total.
+  totalManual?: number | null;
   // Finalização
   textoFinal: string;
   // Status (mesmos campos de controle do orçamento)

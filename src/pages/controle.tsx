@@ -10,15 +10,24 @@ import {
   Upload,
   CheckCircle2,
   ChevronDown,
+  Pencil,
+  Check,
 } from "lucide-react";
 import { useStore } from "../store";
+import { useAuth } from "../auth";
 import type { Orcamento, Proposta } from "../types";
 import { STATUS_FIELDS, STATUS_FIELDS_PC } from "../types";
 import { Modal } from "../components/Modal";
 import { FollowUpModal } from "../components/FollowUpModal";
 import { OrcamentoPreview } from "../components/OrcamentoPreview";
 import { Button, Input, Select, StatusPill } from "../components/ui";
-import { formatBRL, formatDataBR } from "../lib/format";
+import {
+  formatBRL,
+  formatDataBR,
+  maskCNPJ,
+  parseMoedaInput,
+  moedaParaInput,
+} from "../lib/format";
 import { totalFinal } from "../lib/calc";
 import { api, API_ENABLED } from "../lib/api";
 
@@ -119,10 +128,78 @@ export function Controle({
   onAbrirOs,
   onAbrirContrato,
 }: ControleProps = {}) {
-  const { orcamentos, atualizar } = useStore();
+  const { orcamentos, atualizar, salvar } = useStore();
+  const { user } = useAuth();
+
+  // Só o admin master (paulodick) pode editar os campos direto na tabela.
+  const podeEditarInline =
+    (user?.usuario || "").toLowerCase() === "paulodick";
 
   // Propostas são carregadas localmente (no modo mock ficam vazias).
   const [propostas, setPropostas] = useState<Proposta[]>([]);
+
+  // ===== Edição inline (Data, Empresa, CNPJ, Valor Total) =====
+  // Guarda o id do registro em edição e o rascunho dos campos editáveis.
+  const [editId, setEditId] = useState<string | null>(null);
+  const [rascunho, setRascunho] = useState<{
+    data: string;
+    empresa: string;
+    cnpj: string;
+    total: string; // texto do input monetário (reais)
+  }>({ data: "", empresa: "", cnpj: "", total: "" });
+  const [salvandoInline, setSalvandoInline] = useState(false);
+  const [inlineErro, setInlineErro] = useState<string | null>(null);
+
+  const iniciarEdicao = (r: Registro) => {
+    setInlineErro(null);
+    setEditId(r.id);
+    setRascunho({
+      data: r.data || "",
+      empresa: r.empresa || "",
+      cnpj: r.cnpj || "",
+      total: moedaParaInput(r.total || 0),
+    });
+  };
+
+  const cancelarEdicao = () => {
+    setEditId(null);
+    setInlineErro(null);
+  };
+
+  // Salva os campos editados enviando o objeto COMPLETO (PUT), preservando
+  // itens, parcelas e status. O Valor Total vira um "total manual" (override).
+  const salvarEdicao = async (r: Registro) => {
+    const totalReais = parseMoedaInput(rascunho.total);
+    const campos = {
+      data: rascunho.data,
+      empresa: rascunho.empresa.trim(),
+      cnpj: rascunho.cnpj.trim(),
+      totalManual: totalReais > 0 ? totalReais : null,
+    };
+    setInlineErro(null);
+    setSalvandoInline(true);
+    try {
+      if (r.tipoRegistro === "orcamento" && r.orcamento) {
+        // salvar() faz PUT completo via api.atualizarOrcamento e recarrega.
+        salvar({ ...r.orcamento, ...campos });
+      } else if (r.tipoRegistro === "proposta" && r.proposta) {
+        const atualizada = await api.atualizarProposta(r.id, {
+          ...r.proposta,
+          ...campos,
+        });
+        setPropostas((prev) =>
+          prev.map((p) => (p.id === r.id ? (atualizada as Proposta) : p)),
+        );
+      }
+      setEditId(null);
+    } catch (e) {
+      setInlineErro(
+        e instanceof Error ? e.message : "Não foi possível salvar as alterações.",
+      );
+    } finally {
+      setSalvandoInline(false);
+    }
+  };
 
   const [fTipo, setFTipo] = useState<"" | TipoRegistro>("");
   const [busca, setBusca] = useState("");
@@ -531,6 +608,7 @@ export function Controle({
                 const isPC = ehProposta(r);
                 const campos = isPC ? STATUS_FIELDS_PC : STATUS_FIELDS;
                 const contratoAssinado = r.proposta?.contratoAssinado;
+                const emEdicao = editId === r.id;
 
                 return (
                   <tr
@@ -565,19 +643,79 @@ export function Controle({
                         r.numero
                       )}
                     </td>
+                    {/* Data — editável inline (paulodick) */}
                     <td className="px-3 py-2.5 text-slate-500">
-                      {formatDataBR(r.data)}
+                      {emEdicao ? (
+                        <Input
+                          type="date"
+                          value={rascunho.data}
+                          onChange={(e) =>
+                            setRascunho((d) => ({ ...d, data: e.target.value }))
+                          }
+                          className="min-w-[140px]"
+                        />
+                      ) : (
+                        formatDataBR(r.data)
+                      )}
                     </td>
+                    {/* Empresa + CNPJ — editáveis inline (paulodick) */}
                     <td className="px-3 py-2.5">
-                      <div className="truncate font-medium text-slate-900">
-                        {r.empresa || "—"}
-                      </div>
-                      <div className="text-[11px] text-slate-500">
-                        {r.cnpj || "—"}
-                      </div>
+                      {emEdicao ? (
+                        <div className="flex flex-col gap-1">
+                          <Input
+                            value={rascunho.empresa}
+                            onChange={(e) =>
+                              setRascunho((d) => ({
+                                ...d,
+                                empresa: e.target.value,
+                              }))
+                            }
+                            placeholder="Empresa"
+                            className="min-w-[180px]"
+                          />
+                          <Input
+                            value={rascunho.cnpj}
+                            onChange={(e) =>
+                              setRascunho((d) => ({
+                                ...d,
+                                cnpj: maskCNPJ(e.target.value),
+                              }))
+                            }
+                            placeholder="CNPJ"
+                            className="min-w-[180px]"
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <div className="truncate font-medium text-slate-900">
+                            {r.empresa || "—"}
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            {r.cnpj || "—"}
+                          </div>
+                        </>
+                      )}
                     </td>
+                    {/* Valor Total — editável inline (paulodick), vira total manual */}
                     <td className="px-3 py-2.5 font-medium text-slate-900">
-                      {formatBRL(r.total)}
+                      {emEdicao ? (
+                        <Input
+                          inputMode="numeric"
+                          value={rascunho.total}
+                          onChange={(e) =>
+                            setRascunho((d) => ({
+                              ...d,
+                              total: moedaParaInput(
+                                parseMoedaInput(e.target.value),
+                              ),
+                            }))
+                          }
+                          placeholder="0,00"
+                          className="min-w-[120px] text-right"
+                        />
+                      ) : (
+                        formatBRL(r.total)
+                      )}
                     </td>
                     <td className="px-3 py-2.5">
                       <div className="flex flex-wrap gap-1">
@@ -594,6 +732,40 @@ export function Controle({
                     </td>
                     <td className="px-3 py-2.5 text-center">
                       <div className="inline-flex items-center justify-center gap-1">
+                        {/* Edição inline dos campos visíveis — só paulodick */}
+                        {podeEditarInline &&
+                          (emEdicao ? (
+                            <>
+                              <button
+                                onClick={() => salvarEdicao(r)}
+                                disabled={salvandoInline}
+                                title="Salvar alterações"
+                                className="inline-flex items-center justify-center rounded-md p-1.5 text-emerald-600 transition hover:bg-emerald-50 disabled:opacity-50"
+                              >
+                                {salvandoInline ? (
+                                  <Loader2 size={16} className="animate-spin" />
+                                ) : (
+                                  <Check size={16} />
+                                )}
+                              </button>
+                              <button
+                                onClick={cancelarEdicao}
+                                disabled={salvandoInline}
+                                title="Cancelar edição"
+                                className="inline-flex items-center justify-center rounded-md p-1.5 text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+                              >
+                                <X size={16} />
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => iniciarEdicao(r)}
+                              title="Editar Data, Empresa, CNPJ e Valor Total"
+                              className="inline-flex items-center justify-center rounded-md p-1.5 text-text-muted transition hover:bg-primary-soft hover:text-primary"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                          ))}
                         <button
                           onClick={() =>
                             r.tipoRegistro === "proposta"
@@ -778,6 +950,22 @@ export function Controle({
             {pdfErro}
             <button
               onClick={() => setPdfErro(null)}
+              className="ml-2 rounded p-0.5 text-white/70 hover:text-white"
+            >
+              <X size={14} />
+            </button>
+          </span>
+        </div>
+      )}
+
+      {/* Toast de erro ao salvar edição inline */}
+      {inlineErro && (
+        <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 animate-[fadeIn_.2s_ease] rounded-lg bg-slate-900 px-4 py-3 text-[13px] font-medium text-white shadow-lg">
+          <span className="flex items-center gap-2">
+            <X size={16} className="text-rose-400" />
+            {inlineErro}
+            <button
+              onClick={() => setInlineErro(null)}
               className="ml-2 rounded p-0.5 text-white/70 hover:text-white"
             >
               <X size={14} />
