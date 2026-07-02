@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
-import { FilePlus2, LayoutList, Moon, Sun, LogOut, Loader2, Users, FileText, Wallet } from "lucide-react";
+import { FilePlus2, LayoutList, Moon, Sun, LogOut, Loader2, Users, FileText, Wallet, ChevronDown, Coins, TrendingUp, LayoutDashboard } from "lucide-react";
 import { StoreProvider } from "./store";
 import { NovoOrcamento } from "./pages/novoorcamento";
 import { Controle } from "./pages/controle";
 import { ControleFinanceiro } from "./pages/controlefinanceiro";
+import { Despesas } from "./pages/despesas";
+import { FluxoCaixa } from "./pages/fluxocaixa";
+import { DashboardFinanceiro } from "./pages/dashboardfinanceiro";
 import { Crm } from "./pages/crm";
 import { OrdemServicoPage } from "./pages/ordemservico";
 import { PropostaContrato } from "./pages/propostacontrato";
@@ -14,7 +17,25 @@ import { API_ENABLED } from "./lib/api";
 import logoSymbol from "./assets/logo-symbol.png";
 import type { Orcamento, Proposta } from "./types";
 
-type Page = "novo" | "controle" | "financeiro" | "crm" | "os" | "proposta" | "contrato";
+type Page =
+  | "novo"
+  | "controle"
+  | "financeiro"
+  | "despesas"
+  | "fluxo"
+  | "dashboard-fin"
+  | "crm"
+  | "os"
+  | "proposta"
+  | "contrato";
+
+// Páginas que compõem o submenu "Controle Financeiro".
+const PAGINAS_FINANCEIRO: Page[] = [
+  "financeiro",
+  "despesas",
+  "fluxo",
+  "dashboard-fin",
+];
 
 function Logo() {
   return (
@@ -64,6 +85,33 @@ function NavButton({
   );
 }
 
+// Sub-item do submenu (indentado, menor) usado no "Controle Financeiro".
+function SubNavButton({
+  active,
+  onClick,
+  icon,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition ${
+        active
+          ? "bg-primary text-white shadow-sm"
+          : "text-slate-400 hover:bg-white/10 hover:text-white"
+      }`}
+    >
+      <span className="shrink-0">{icon}</span>
+      <span>{children}</span>
+    </button>
+  );
+}
+
 function AppShell() {
   // Lê a preferência de tema salva (persiste entre recarregamentos).
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -76,6 +124,8 @@ function AppShell() {
     return "light";
   });
   const [page, setPage] = useState<Page>("controle");
+  // Submenu "Controle Financeiro" aberto/fechado na sidebar.
+  const [financeiroAberto, setFinanceiroAberto] = useState(false);
   const [orcamentoEdit, setOrcamentoEdit] = useState<Orcamento | null>(null);
   const [propostaEdit, setPropostaEdit] = useState<Proposta | null>(null);
   // Id do orçamento cuja OS deve ser aberta
@@ -92,9 +142,17 @@ function AppShell() {
 
   // Se o usuário atual não pode ver o CRM mas está nessa página, volta ao Controle.
   useEffect(() => {
-    if ((page === "crm" || page === "financeiro") && !podeVerCrm)
+    if (
+      (page === "crm" || PAGINAS_FINANCEIRO.includes(page)) &&
+      !podeVerCrm
+    )
       setPage("controle");
   }, [page, podeVerCrm]);
+
+  // Mantém o submenu financeiro aberto quando uma de suas páginas está ativa.
+  useEffect(() => {
+    if (PAGINAS_FINANCEIRO.includes(page)) setFinanceiroAberto(true);
+  }, [page]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -160,13 +218,60 @@ function AppShell() {
               Controle
             </NavButton>
             {podeVerCrm && (
-              <NavButton
-                active={page === "financeiro"}
-                onClick={() => setPage("financeiro")}
-                icon={<Wallet size={18} />}
-              >
-                Controle Financeiro
-              </NavButton>
+              <div>
+                {/* Botão pai: abre/fecha o submenu financeiro */}
+                <button
+                  onClick={() => setFinanceiroAberto((v) => !v)}
+                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+                    PAGINAS_FINANCEIRO.includes(page)
+                      ? "text-white"
+                      : "text-slate-300 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <span className="shrink-0">
+                    <Wallet size={18} />
+                  </span>
+                  <span className="flex-1 text-left">Controle Financeiro</span>
+                  <ChevronDown
+                    size={16}
+                    className={`shrink-0 transition-transform ${
+                      financeiroAberto ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+                {financeiroAberto && (
+                  <div className="mt-1 flex flex-col gap-0.5 border-l border-white/10 pl-3">
+                    <SubNavButton
+                      active={page === "financeiro"}
+                      onClick={() => setPage("financeiro")}
+                      icon={<Wallet size={16} />}
+                    >
+                      Recebíveis
+                    </SubNavButton>
+                    <SubNavButton
+                      active={page === "despesas"}
+                      onClick={() => setPage("despesas")}
+                      icon={<Coins size={16} />}
+                    >
+                      Despesas
+                    </SubNavButton>
+                    <SubNavButton
+                      active={page === "fluxo"}
+                      onClick={() => setPage("fluxo")}
+                      icon={<TrendingUp size={16} />}
+                    >
+                      Fluxo de Caixa
+                    </SubNavButton>
+                    <SubNavButton
+                      active={page === "dashboard-fin"}
+                      onClick={() => setPage("dashboard-fin")}
+                      icon={<LayoutDashboard size={16} />}
+                    >
+                      Dashboard
+                    </SubNavButton>
+                  </div>
+                )}
+              </div>
             )}
             {podeVerCrm && (
               <NavButton
@@ -241,13 +346,36 @@ function AppShell() {
                 <LayoutList size={18} />
               </button>
               {podeVerCrm && (
-                <button
-                  onClick={() => setPage("financeiro")}
-                  title="Controle Financeiro"
-                  className={`rounded-md p-2 ${page === "financeiro" ? "bg-primary text-white" : "text-text-muted"}`}
-                >
-                  <Wallet size={18} />
-                </button>
+                <>
+                  <button
+                    onClick={() => setPage("financeiro")}
+                    title="Recebíveis"
+                    className={`rounded-md p-2 ${page === "financeiro" ? "bg-primary text-white" : "text-text-muted"}`}
+                  >
+                    <Wallet size={18} />
+                  </button>
+                  <button
+                    onClick={() => setPage("despesas")}
+                    title="Despesas"
+                    className={`rounded-md p-2 ${page === "despesas" ? "bg-primary text-white" : "text-text-muted"}`}
+                  >
+                    <Coins size={18} />
+                  </button>
+                  <button
+                    onClick={() => setPage("fluxo")}
+                    title="Fluxo de Caixa"
+                    className={`rounded-md p-2 ${page === "fluxo" ? "bg-primary text-white" : "text-text-muted"}`}
+                  >
+                    <TrendingUp size={18} />
+                  </button>
+                  <button
+                    onClick={() => setPage("dashboard-fin")}
+                    title="Dashboard Financeiro"
+                    className={`rounded-md p-2 ${page === "dashboard-fin" ? "bg-primary text-white" : "text-text-muted"}`}
+                  >
+                    <LayoutDashboard size={18} />
+                  </button>
+                </>
               )}
               {podeVerCrm && (
                 <button
@@ -305,6 +433,12 @@ function AppShell() {
               <Crm />
             ) : page === "financeiro" && podeVerCrm ? (
               <ControleFinanceiro />
+            ) : page === "despesas" && podeVerCrm ? (
+              <Despesas />
+            ) : page === "fluxo" && podeVerCrm ? (
+              <FluxoCaixa />
+            ) : page === "dashboard-fin" && podeVerCrm ? (
+              <DashboardFinanceiro />
             ) : (
               <Controle
                 onEdit={(orc) => {

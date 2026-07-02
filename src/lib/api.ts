@@ -313,6 +313,33 @@ export const api = {
       { method: "POST", body: JSON.stringify(payload) },
     ),
 
+  // ===== Controle Financeiro — Despesas + Resumo =====
+  listarDespesas: (query = "") =>
+    req<ListaResposta<any>>(`/financeiro/despesas${query}`),
+  criarDespesa: (d: any) =>
+    req<any>("/financeiro/despesas", { method: "POST", body: JSON.stringify(d) }),
+  atualizarDespesa: (id: string, d: any) =>
+    req<any>(`/financeiro/despesas/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(d),
+    }),
+  removerDespesa: (id: string) =>
+    req<{ ok: boolean }>(`/financeiro/despesas/${id}`, { method: "DELETE" }),
+  // Resumo consolidado (KPIs + fluxo de caixa mensal + despesas por categoria).
+  resumoFinanceiro: () =>
+    req<{
+      kpis: {
+        receitaRecebida: number;
+        receitaAberta: number;
+        despesaTotal: number;
+        despesaPaga: number;
+        despesaPendente: number;
+        resultado: number;
+      };
+      fluxo: { mes: string; entrada: number; saida: number; saldo: number }[];
+      despesasPorCategoria: { categoria: string; valor: number }[];
+    }>("/financeiro/resumo"),
+
   // CEP
   consultarCep: (cep: string) =>
     req<{ cep: string; endereco: string; bairro: string; cidade: string; estado: string }>(
