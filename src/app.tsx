@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { FilePlus2, LayoutList, Moon, Sun, LogOut, Loader2, Users, FileText } from "lucide-react";
+import { FilePlus2, LayoutList, Moon, Sun, LogOut, Loader2, Users, FileText, Wallet } from "lucide-react";
 import { StoreProvider } from "./store";
 import { NovoOrcamento } from "./pages/novoorcamento";
 import { Controle } from "./pages/controle";
+import { ControleFinanceiro } from "./pages/controlefinanceiro";
 import { Crm } from "./pages/crm";
 import { OrdemServicoPage } from "./pages/ordemservico";
 import { PropostaContrato } from "./pages/propostacontrato";
@@ -13,7 +14,7 @@ import { API_ENABLED } from "./lib/api";
 import logoSymbol from "./assets/logo-symbol.png";
 import type { Orcamento, Proposta } from "./types";
 
-type Page = "novo" | "controle" | "crm" | "os" | "proposta" | "contrato";
+type Page = "novo" | "controle" | "financeiro" | "crm" | "os" | "proposta" | "contrato";
 
 function Logo() {
   return (
@@ -91,7 +92,8 @@ function AppShell() {
 
   // Se o usuário atual não pode ver o CRM mas está nessa página, volta ao Controle.
   useEffect(() => {
-    if (page === "crm" && !podeVerCrm) setPage("controle");
+    if ((page === "crm" || page === "financeiro") && !podeVerCrm)
+      setPage("controle");
   }, [page, podeVerCrm]);
 
   useEffect(() => {
@@ -157,6 +159,15 @@ function AppShell() {
             >
               Controle
             </NavButton>
+            {podeVerCrm && (
+              <NavButton
+                active={page === "financeiro"}
+                onClick={() => setPage("financeiro")}
+                icon={<Wallet size={18} />}
+              >
+                Controle Financeiro
+              </NavButton>
+            )}
             {podeVerCrm && (
               <NavButton
                 active={page === "crm"}
@@ -231,6 +242,15 @@ function AppShell() {
               </button>
               {podeVerCrm && (
                 <button
+                  onClick={() => setPage("financeiro")}
+                  title="Controle Financeiro"
+                  className={`rounded-md p-2 ${page === "financeiro" ? "bg-primary text-white" : "text-text-muted"}`}
+                >
+                  <Wallet size={18} />
+                </button>
+              )}
+              {podeVerCrm && (
+                <button
                   onClick={() => setPage("crm")}
                   title="CRM"
                   className={`rounded-md p-2 ${page === "crm" ? "bg-primary text-white" : "text-text-muted"}`}
@@ -283,6 +303,8 @@ function AppShell() {
               />
             ) : page === "crm" && podeVerCrm ? (
               <Crm />
+            ) : page === "financeiro" && podeVerCrm ? (
+              <ControleFinanceiro />
             ) : (
               <Controle
                 onEdit={(orc) => {

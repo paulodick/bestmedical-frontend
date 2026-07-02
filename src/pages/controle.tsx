@@ -61,7 +61,13 @@ interface Registro {
 
 // Status que ficam OCULTOS por padrão na lista de Controle.
 // Só aparecem quando o usuário marca explicitamente no filtro "Status".
-const STATUS_OCULTOS_PADRAO = ["reprovado", "pagamentoRealizado", "vigente"];
+// "cancelado" também oculta o registro (aqui e no Controle Financeiro).
+const STATUS_OCULTOS_PADRAO = [
+  "reprovado",
+  "pagamentoRealizado",
+  "vigente",
+  "cancelado",
+];
 
 // Conjunto de status disponíveis no filtro (união de orçamentos + propostas),
 // sem duplicar chaves.
@@ -69,6 +75,8 @@ const STATUS_FILTRO: { key: string; label: string }[] = (() => {
   const mapa = new Map<string, string>();
   for (const s of STATUS_FIELDS) mapa.set(s.key as string, s.label);
   for (const s of STATUS_FIELDS_PC) mapa.set(s.key as string, s.label);
+  // Cancelado fica disponível no filtro para reexibir itens ocultos.
+  mapa.set("cancelado", "Cancelado");
   return [...mapa.entries()].map(([key, label]) => ({ key, label }));
 })();
 
@@ -287,6 +295,50 @@ export function Controle({
       );
     } finally {
       setPdfCarregando(null);
+    }
+  };
+
+  // Cancela / reativa um registro. Ao CANCELAR, limpa todos os demais status
+  // (fica só "cancelado") e o registro some das tabelas Controle e Financeiro.
+  // Ao REATIVAR (desmarcar), o registro volta a aparecer.
+  const toggleCancelado = (r: Registro) => {
+    const novo = !statusOn(r, "cancelado");
+    const patch: Record<string, boolean> = { cancelado: novo };
+    if (novo) {
+      // Desmarca todos os outros status ao cancelar.
+      const chaves = [
+        "enviado",
+        "aprovado",
+        "realizado",
+        "aguardandoPeca",
+        "ordemServico",
+        "pagamentoRealizado",
+        "reprovado",
+        "assinado",
+        "vigente",
+        "pago",
+        "atrasado",
+      ];
+      for (const k of chaves) patch[k] = false;
+    }
+    if (r.tipoRegistro === "orcamento") {
+      atualizar(r.id, patch);
+      return;
+    }
+    setPropostas((prev) =>
+      prev.map((p) => (p.id === r.id ? { ...p, ...patch } : p)),
+    );
+    if (API_ENABLED) {
+      api
+        .atualizarStatusProposta(r.id, patch)
+        .then((p) =>
+          setPropostas((prev) =>
+            prev.map((x) => (x.id === r.id ? (p as Proposta) : x)),
+          ),
+        )
+        .catch((e) =>
+          console.error("Falha ao cancelar/reativar proposta:", e),
+        );
     }
   };
 
@@ -601,6 +653,7 @@ export function Controle({
           <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
             <tr>
               <th className="px-3 py-2.5 font-medium">Enviado</th>
+              <th className="px-3 py-2.5 font-medium">Cancelar</th>
               <th className="px-3 py-2.5 font-medium">Nº</th>
               <th className="px-3 py-2.5 font-medium">Data</th>
               <th className="px-3 py-2.5 font-medium">Empresa</th>
@@ -612,7 +665,7 @@ export function Controle({
           <tbody>
             {filtrados.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-8 text-center text-slate-500">
+                <td colSpan={8} className="p-8 text-center text-slate-500">
                   Nenhum registro encontrado.
                 </td>
               </tr>
@@ -633,11 +686,16 @@ export function Controle({
                 const campos = isPC ? STATUS_FIELDS_PC : STATUS_FIELDS;
                 const contratoAssinado = r.proposta?.contratoAssinado;
                 const emEdicao = editId === r.id;
+                const cancelado = statusOn(r, "cancelado");
 
                 return (
                   <tr
                     key={`${r.tipoRegistro}-${r.id}`}
-                    className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50"
+                    className={
+                      cancelado
+                        ? "border-b border-slate-200 bg-slate-100 !text-black last:border-0"
+                        : "border-b border-slate-100 last:border-0 hover:bg-slate-50/50"
+                    }
                   >
                     {/* Coluna Enviado — botão excluir (paulodick) + selo/follow-up */}
                     <td className="px-3 py-2.5">
@@ -661,6 +719,25 @@ export function Controle({
                           {selo.texto}
                         </button>
                       </div>
+                    </td>
+                    {/* Botão Cancelar — oculta o registro aqui e no Financeiro */}
+                    <td className="px-3 py-2.5">
+                      <button
+                        type="button"
+                        onClick={() => toggleCancelado(r)}
+                        title={
+                          cancelado
+                            ? "Reativar (torna visível novamente)"
+                            : "Cancelar (oculta das tabelas)"
+                        }
+                        className={
+                          cancelado
+                            ? "inline-flex items-center justify-center rounded-md bg-rose-600 px-2.5 py-1 text-[12px] font-bold text-white transition hover:bg-rose-700"
+                            : "inline-flex items-center justify-center rounded-md border border-slate-300 px-2.5 py-1 text-[12px] font-medium text-slate-500 transition hover:border-rose-400 hover:text-rose-600"
+                        }
+                      >
+                        Cancelado
+                      </button>
                     </td>
                     <td className="px-3 py-2.5 font-medium text-slate-900">
                       {abrirEdicao ? (

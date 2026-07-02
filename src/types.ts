@@ -124,6 +124,12 @@ export interface Orcamento {
   ordemServico: boolean;
   pagamentoRealizado: boolean;
   reprovado: boolean;
+  // Controle Financeiro
+  pago?: boolean;
+  atrasado?: boolean;
+  cancelado?: boolean;
+  // Data prevista do recebimento (ISO yyyy-mm-dd) ou null
+  dataPagamento?: string | null;
   // Quando o orçamento foi enviado (ISO datetime) — coluna "Enviado"
   enviadoEm?: string | null;
 }
@@ -241,6 +247,12 @@ export interface Proposta {
   assinado: boolean;
   vigente: boolean;
   reprovado: boolean;
+  // Controle Financeiro
+  pago?: boolean;
+  atrasado?: boolean;
+  cancelado?: boolean;
+  // Data prevista do recebimento (ISO yyyy-mm-dd) ou null
+  dataPagamento?: string | null;
   // Quando a proposta foi enviada (ISO datetime) — usado na coluna "Enviado"
   enviadoEm?: string | null;
   // Metadados do contrato assinado carregado (PDF guardado no servidor)
