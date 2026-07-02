@@ -253,6 +253,8 @@ export interface Proposta {
   cancelado?: boolean;
   // Data prevista do recebimento (ISO yyyy-mm-dd) ou null
   dataPagamento?: string | null;
+  // Data de início da vigência do contrato (ISO yyyy-mm-dd) ou null
+  inicioContrato?: string | null;
   // Quando a proposta foi enviada (ISO datetime) — usado na coluna "Enviado"
   enviadoEm?: string | null;
   // Metadados do contrato assinado carregado (PDF guardado no servidor)
@@ -293,8 +295,6 @@ export const STATUS_FIELDS: { key: keyof Orcamento; label: string }[] = [
   { key: "realizado", label: "Realizado" },
   { key: "aguardandoPeca", label: "Aguardando peça" },
   { key: "ordemServico", label: "Ordem de serviço" },
-  { key: "pagamentoRealizado", label: "Pagamento realizado" },
-  { key: "reprovado", label: "Reprovado" },
 ];
 
 // Campos de status específicos das Propostas de Contrato (linhas que começam com PC).
@@ -303,5 +303,4 @@ export const STATUS_FIELDS_PC: { key: keyof Proposta; label: string }[] = [
   { key: "aprovado", label: "Aprovado" },
   { key: "assinado", label: "Assinado" },
   { key: "vigente", label: "Vigente" },
-  { key: "reprovado", label: "Reprovado" },
 ];

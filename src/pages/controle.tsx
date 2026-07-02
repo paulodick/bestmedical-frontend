@@ -66,12 +66,7 @@ interface Registro {
 // Status que ficam OCULTOS por padrão na lista de Controle.
 // Só aparecem quando o usuário marca explicitamente no filtro "Status".
 // "cancelado" também oculta o registro (aqui e no Controle Financeiro).
-const STATUS_OCULTOS_PADRAO = [
-  "reprovado",
-  "pagamentoRealizado",
-  "vigente",
-  "cancelado",
-];
+const STATUS_OCULTOS_PADRAO = ["vigente", "cancelado"];
 
 // Conjunto de status disponíveis no filtro (união de orçamentos + propostas),
 // sem duplicar chaves.

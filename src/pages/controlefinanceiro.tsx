@@ -186,20 +186,25 @@ export function ControleFinanceiro() {
       cancelado: !!o.cancelado,
       orcamento: o,
     }));
-    const dasProp: Registro[] = propostas.map((p) => ({
-      tipoRegistro: "proposta",
-      id: p.id,
-      numero: p.numero,
-      data: p.data,
-      empresa: p.empresa,
-      cnpj: p.cnpj,
-      total: p.total,
-      dataPagamento: p.dataPagamento ?? null,
-      pago: !!p.pago,
-      atrasado: !!p.atrasado,
-      cancelado: !!p.cancelado,
-      proposta: p,
-    }));
+    // Contratos (propostas) só entram no Controle Financeiro depois que a
+    // data de início do contrato é preenchida na página da proposta.
+    // Sem essa data, o pagamento mensal ainda não foi ativado.
+    const dasProp: Registro[] = propostas
+      .filter((p) => !!p.inicioContrato)
+      .map((p) => ({
+        tipoRegistro: "proposta",
+        id: p.id,
+        numero: p.numero,
+        data: p.data,
+        empresa: p.empresa,
+        cnpj: p.cnpj,
+        total: p.total,
+        dataPagamento: p.dataPagamento ?? null,
+        pago: !!p.pago,
+        atrasado: !!p.atrasado,
+        cancelado: !!p.cancelado,
+        proposta: p,
+      }));
     return [...dosOrc, ...dasProp];
   }, [orcamentos, propostas]);
 

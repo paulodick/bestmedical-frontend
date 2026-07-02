@@ -95,6 +95,7 @@ function novaPropostaVazia(numero: string): Proposta {
     assinado: false,
     vigente: false,
     reprovado: false,
+    inicioContrato: null,
     enviadoEm: null,
     contratoAssinado: null,
     equipamentos: [equipamentoVazio()],
@@ -675,6 +676,25 @@ export function PropostaContrato({ propostaParaEditar }: PropostaContratoProps =
                   </option>
                 ))}
               </Select>
+
+              {/* Início do contrato: enquanto vazio, o contrato NÃO entra no
+                  Controle Financeiro (pagamento mensal ainda não ativado). */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Input
+                  label="Início do contrato"
+                  type="date"
+                  value={p.inicioContrato ?? ""}
+                  onChange={(e) =>
+                    setP({ ...p, inicioContrato: e.target.value || null })
+                  }
+                />
+                <div className="flex items-end">
+                  <p className="text-[12px] text-text-muted">
+                    O pagamento mensal do contrato só entra no Controle
+                    Financeiro após o preenchimento desta data.
+                  </p>
+                </div>
+              </div>
 
               {/* Valores por equipamento (mensal) */}
               <div>
