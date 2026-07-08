@@ -34,6 +34,7 @@ export const ReactFlowBuilder: React.FC = () => {
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   
   const canvasRef = useRef<HTMLDivElement>(null);
+
   const selectedNode = nodes.find(n => n.id === selectedNodeId);
 
   const handleNodeMouseDown = (e: React.MouseEvent, id: string) => {
@@ -60,21 +61,61 @@ export const ReactFlowBuilder: React.FC = () => {
     }
   };
 
+  const handleAddAgent = () => {
+    const id = `n-${Date.now()}`;
+    const newNode: WorkflowNode = { id, type: 'agent', label: 'Agente Gemini', x: 200, y: 200, props: { prompt: 'Responda.' } };
+    setNodes(prev => [...prev, newNode]);
+    
+    const lastNode = nodes[nodes.length - 1];
+    if (lastNode) {
+      const newEdgeId = `e-${Date.now()}`;
+      setEdges(prev => [...prev, { id: newEdgeId, from: lastNode.id, to: id }]);
+    }
+  };
+
   return (
     <div className="flex h-screen w-full bg-[#0B0F19] text-slate-100 overflow-hidden font-sans">
-      <div className="w-72 bg-[#121824] border-r border-[#1B2234] p-5">
-        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Adicionar Elementos</h2>
-        <div className="space-y-2">
-          <button onClick={() => {
-            const id = `n-${Date.now()}`;
-            setNodes(prev => [...prev, { id, type: 'agent', label: 'Agente Gemini', x: 200, y: 200, props: { prompt: 'Responda.' } }]);
-          }} className="w-full text-left p-3 bg-[#1B2234] border border-[#1B2234] hover:border-teal-500/40 rounded-xl text-xs">
-            🤖 Novo Agente IA
-          </button>
+      <div className="w-72 bg-[#121824] border-r border-[#1B2234] p-5 flex flex-col justify-between">
+        <div>
+          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Adicionar Elementos</h2>
+          <div className="space-y-2">
+            <button onClick={handleAddAgent} className="w-full text-left p-3 bg-[#1B2234] border border-[#1B2234] hover:border-teal-500/40 rounded-xl text-xs transition-colors">
+              🤖 Novo Agente IA
+            </button>
+          </div>
         </div>
+
+        {selectedNode && (
+          <div className="border-t border-[#1B2234] pt-4">
+            <h3 className="text-xs font-bold text-teal-400 uppercase">Propriedades</h3>
+            <p className="text-[11px] text-slate-300 mt-1">ID: {selectedNode.id}</p>
+            <p className="text-[11px] text-slate-300">Tipo: {selectedNode.type}</p>
+            <p className="text-[11px] text-slate-400 mt-2 font-mono">Conexões Ativas: {edges.filter(e => e.from === selectedNode.id || e.to === selectedNode.id).length}</p>
+          </div>
+        )}
       </div>
       
       <div ref={canvasRef} onMouseMove={handleMouseMove} onMouseUp={() => setDraggingNodeId(null)} className="flex-grow relative bg-[radial-gradient(#1B2234_1px,transparent_1px)] [background-size:20px_20px]">
+        <svg className="absolute inset-0 w-full h-full pointer-events-none">
+          {edges.map((edge) => {
+            const fromNode = nodes.find(n => n.id === edge.from);
+            const toNode = nodes.find(n => n.id === edge.to);
+            if (!fromNode || !toNode) return null;
+            return (
+              <line
+                key={edge.id}
+                x1={fromNode.x + 100}
+                y1={fromNode.y + 30}
+                x2={toNode.x + 100}
+                y2={toNode.y + 30}
+                stroke="#10E5CA"
+                strokeWidth="2"
+                strokeDasharray="4"
+              />
+            );
+          })}
+        </svg>
+
         {nodes.map(node => (
           <div key={node.id} onMouseDown={(e) => handleNodeMouseDown(e, node.id)} style={{ left: node.x, top: node.y }} className={`absolute w-52 p-4 bg-[#121824] border rounded-2xl shadow-xl cursor-grab ${selectedNodeId === node.id ? 'border-[#10E5CA]' : 'border-[#1B2234]'}`}>
             <div className="text-[10px] text-teal-400 font-bold uppercase">{node.type}</div>
