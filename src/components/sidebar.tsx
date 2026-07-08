@@ -11,7 +11,7 @@ export const Sidebar: React.FC = () => {
       {/* Topo: Logo e Nome */}
       <div className="p-6">
         <div className="flex items-center gap-3">
-          <div class="p-2 rounded-xl bg-teal-500/10 border border-teal-500/20">
+          <div className="p-2 rounded-xl bg-teal-500/10 border border-teal-500/20">
             <svg className="w-8 h-8 text-[#10E5CA]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               <circle cx="12" cy="12" r="9" className="opacity-20" fill="currentColor" />
@@ -61,7 +61,9 @@ export const Sidebar: React.FC = () => {
           </div>
         </button>
 
-        {/* CONTROLE FINANCEIRO */}
+        {/* ==========================================
+            CONTROLE FINANCEIRO DROPDOWN (RESOLVENDO TS6133)
+            ========================================== */}
         <div className="border-t border-[#1B2234] pt-2">
           <button
             onClick={() => setIsFinanceiroOpen(!isFinanceiroOpen)}
@@ -90,7 +92,9 @@ export const Sidebar: React.FC = () => {
           )}
         </div>
 
-        {/* CONTROLE PESSOAL */}
+        {/* ==========================================
+            CONTROLE FINANCEIRO PESSOAL DROPDOWN (RESOLVENDO TS6133)
+            ========================================== */}
         <div className="pt-1">
           <button
             onClick={() => setIsPessoalOpen(!isPessoalOpen)}
@@ -118,7 +122,9 @@ export const Sidebar: React.FC = () => {
           )}
         </div>
 
-        {/* CRM EXPANSÍVEL */}
+        {/* ==========================================
+            CRM DROPDOWN EXPANSÍVEL
+            ========================================== */}
         <div className="border-t border-[#1B2234] pt-2">
           <button
             onClick={() => setIsCrmOpen(!isCrmOpen)}
@@ -151,7 +157,7 @@ export const Sidebar: React.FC = () => {
 
       </div>
 
-      {/* Rodapé paulodick */}
+      {/* Rodapé */}
       <div className="p-4 border-t border-[#1B2234] bg-[#0E131F]/40">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-semibold text-slate-300">paulodick</span>
