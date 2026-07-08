@@ -1,4 +1,3 @@
-import React from 'react';
 import { Sidebar } from './components/Sidebar';
 
 // 1. Export Nomeado (para caso o main.tsx use chaves)
