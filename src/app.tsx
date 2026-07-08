@@ -1,3 +1,4 @@
+import { Sidebar } from './components/Sidebar';
 import { useEffect, useState } from "react";
 import { FilePlus2, LayoutList, Moon, Sun, LogOut, Loader2, Users, FileText, Wallet, ChevronDown, Coins, TrendingUp, LayoutDashboard } from "lucide-react";
 import { StoreProvider } from "./store";
