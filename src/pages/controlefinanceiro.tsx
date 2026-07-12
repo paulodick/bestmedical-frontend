@@ -316,7 +316,7 @@ export function ControleFinanceiro({
 
   // ===== Une orçamentos + propostas em registros =====
   const registros = useMemo<Registro[]>(() => {
-    const dosOrc: Registro[] = orcamentos.map((o) => ({
+    const dosOrc: Registro[] = orcamentos.filter((o) => !!o.aprovado).map((o) => ({
       tipoRegistro: "orcamento",
       id: o.id,
       numero: o.numero,
@@ -334,7 +334,7 @@ export function ControleFinanceiro({
     // data de início do contrato é preenchida na página da proposta.
     // Sem essa data, o pagamento mensal ainda não foi ativado.
     const dasProp: Registro[] = propostas
-      .filter((p) => !!p.inicioContrato)
+      .filter((p) => !!p.assinado)
       .map((p) => ({
         tipoRegistro: "proposta",
         id: p.id,
