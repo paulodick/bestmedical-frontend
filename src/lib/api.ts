@@ -105,7 +105,10 @@ export const api = {
       body: JSON.stringify(patch),
     }),
   enviarOrcamento: (id: string) =>
-    req<any>(`/orcamentos/${id}/enviar`, { method: "POST" }),
+    req<{ ok: boolean; mensagem: string; orcamento?: any }>(
+      `/orcamentos/${id}/enviar`,
+      { method: "POST" },
+    ),
   removerOrcamento: (id: string) =>
     req<void>(`/orcamentos/${id}`, { method: "DELETE" }),
 

@@ -145,20 +145,29 @@ function AppShell() {
   );
   const { logout, user } = useAuth();
 
-  // CRM é exclusivo do login 'paulodick' (admin master).
+  // CRM e Controle Financeiro Pessoal são exclusivos do login 'paulodick' (admin master).
   const podeVerCrm =
     (user?.usuario || "").trim().toLowerCase() === "paulodick";
+  // Controle Financeiro (geral) é liberado para qualquer usuário com perfil admin,
+  // igual à regra do backend (@Roles('admin') em despesas.controller.ts) — não é
+  // exclusivo do paulodick.
+  const podeVerFinanceiro =
+    (user?.perfil || "").trim().toLowerCase() === "admin";
 
-  // Se o usuário atual não pode ver o CRM mas está nessa página, volta ao Controle.
+  // Se o usuário atual não pode ver a página em que está, volta ao Controle.
   useEffect(() => {
-    if (
-      (page === "crm" ||
-        PAGINAS_FINANCEIRO.includes(page) ||
-        PAGINAS_PESSOAL.includes(page)) &&
-      !podeVerCrm
-    )
+    if (page === "crm" && !podeVerCrm) {
       setPage("controle");
-  }, [page, podeVerCrm]);
+      return;
+    }
+    if (PAGINAS_FINANCEIRO.includes(page) && !podeVerFinanceiro) {
+      setPage("controle");
+      return;
+    }
+    if (PAGINAS_PESSOAL.includes(page) && !podeVerCrm) {
+      setPage("controle");
+    }
+  }, [page, podeVerCrm, podeVerFinanceiro]);
 
   // Mantém o submenu financeiro aberto quando uma de suas páginas está ativa.
   useEffect(() => {
@@ -229,7 +238,7 @@ function AppShell() {
             >
               Controle
             </NavButton>
-            {podeVerCrm && (
+            {podeVerFinanceiro && (
               <div>
                 {/* Botão pai: abre/fecha o submenu financeiro */}
                 <button
@@ -401,7 +410,7 @@ function AppShell() {
               >
                 <LayoutList size={18} />
               </button>
-              {podeVerCrm && (
+              {podeVerFinanceiro && (
                 <>
                   <button
                     onClick={() => setPage("financeiro")}
@@ -487,7 +496,7 @@ function AppShell() {
               />
             ) : page === "crm" && podeVerCrm ? (
               <Crm />
-            ) : page === "financeiro" && podeVerCrm ? (
+            ) : page === "financeiro" && podeVerFinanceiro ? (
               <ControleFinanceiro
                 onEdit={(orc) => {
                   setOrcamentoEdit(orc);
@@ -498,11 +507,11 @@ function AppShell() {
                   setPage("proposta");
                 }}
               />
-            ) : page === "despesas" && podeVerCrm ? (
+            ) : page === "despesas" && podeVerFinanceiro ? (
               <Despesas />
-            ) : page === "fluxo" && podeVerCrm ? (
+            ) : page === "fluxo" && podeVerFinanceiro ? (
               <FluxoCaixa />
-            ) : page === "dashboard-fin" && podeVerCrm ? (
+            ) : page === "dashboard-fin" && podeVerFinanceiro ? (
               <DashboardFinanceiro />
             ) : page === "pessoal" && podeVerCrm ? (
               <ControleFinanceiroPessoal />

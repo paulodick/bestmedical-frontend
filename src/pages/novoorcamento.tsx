@@ -262,13 +262,29 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
     mostrarToast("Orçamento salvo com sucesso!");
   };
 
-  const handleEnviar = () => {
-    handleSalvar();
+  const handleEnviar = async () => {
+    if (!API_ENABLED) {
+      mostrarToast("Envio de e-mail indisponível no modo offline.", "erro");
+      return;
+    }
+    const existe = orcamentos.some((x) => x.id === o.id);
+    if (!existe) {
+      mostrarToast("Salve o orçamento antes de enviar por e-mail.", "erro");
+      return;
+    }
     setEnviando(true);
-    setTimeout(() => {
+    try {
+      await api.atualizarOrcamento(o.id, o);
+      const r = await api.enviarOrcamento(o.id);
+      mostrarToast(r.mensagem, r.ok ? "sucesso" : "erro");
+    } catch (e) {
+      mostrarToast(
+        e instanceof Error ? e.message : "Falha ao enviar o orçamento.",
+        "erro",
+      );
+    } finally {
       setEnviando(false);
-      mostrarToast("E-mail enviado com sucesso!");
-    }, 1500);
+    }
   };
 
   // Recalcula as parcelas de forma consistente a partir dos itens, desconto e
