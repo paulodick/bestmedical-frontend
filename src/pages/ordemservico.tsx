@@ -13,8 +13,8 @@ import {
 } from "lucide-react";
 import { Block, Button, Field, Input, Textarea } from "../components/ui";
 import { Modal } from "../components/Modal";
-import type { OrdemServico, ItemOS, FotoOS } from "../types";
-import { formatDataBR } from "../lib/format";
+import type { OrdemServico, ItemOS, FotoOS, AtendimentoOS } from "../types";
+import { formatDataBR, hojeISO } from "../lib/format";
 import { api, API_ENABLED } from "../lib/api";
 
 // ===== Utilitários =====
@@ -316,6 +316,42 @@ export function OrdemServicoPage({ orcamentoId, onVoltar }: OrdemServicoPageProp
     });
   };
 
+  // Atualiza um conjunto de atendimento (data / técnico / descrição)
+  const setAtendimento = (idx: number, patch: Partial<AtendimentoOS>) => {
+    setOs((prev) => {
+      if (!prev) return prev;
+      const atendimentos = prev.atendimentos.map((a, i) =>
+        i === idx ? { ...a, ...patch } : a,
+      );
+      return { ...prev, atendimentos };
+    });
+  };
+
+  // Adiciona um novo conjunto de atendimento — sem limite de quantidade.
+  const adicionarAtendimento = () => {
+    setOs((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        atendimentos: [
+          ...prev.atendimentos,
+          { data: prev.data || hojeISO(), tecnico: "", descricao: "" },
+        ],
+      };
+    });
+  };
+
+  // Remove um conjunto de atendimento.
+  const removerAtendimento = (idx: number) => {
+    setOs((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        atendimentos: prev.atendimentos.filter((_, i) => i !== idx),
+      };
+    });
+  };
+
   // Adiciona fotos (comprime antes)
   const adicionarFotos = async (files: FileList) => {
     if (!os) return;
@@ -373,6 +409,11 @@ export function OrdemServicoPage({ orcamentoId, onVoltar }: OrdemServicoPageProp
         fotos: os.fotos.map((f) => ({
           dataUrl: f.dataUrl,
           legenda: f.legenda,
+        })),
+        atendimentos: os.atendimentos.map((a) => ({
+          data: a.data,
+          tecnico: a.tecnico,
+          descricao: a.descricao,
         })),
       };
       const atualizada = await api.atualizarOs(os.id, payload);
@@ -603,14 +644,63 @@ export function OrdemServicoPage({ orcamentoId, onVoltar }: OrdemServicoPageProp
         </div>
       </Block>
 
-      {/* Bloco 5 — Descrição do Serviço */}
-      <Block title="Descrição do Serviço" step={5}>
-        <Textarea
-          value={os.descricaoServico}
-          onChange={(e) => setField("descricaoServico", e.target.value)}
-          placeholder="Descreva detalhadamente o serviço realizado…"
-          rows={5}
-        />
+      {/* Bloco 5 — Descrição do Serviço (atendimentos: data + técnico + descrição) */}
+      <Block
+        title="Descrição do Serviço"
+        step={5}
+        description="Registre cada atendimento com data, técnico responsável e descrição. Adicione quantos forem necessários."
+      >
+        <div className="space-y-4">
+          {os.atendimentos.length === 0 ? (
+            <p className="text-[13px] text-text-faint">
+              Nenhum atendimento adicionado ainda.
+            </p>
+          ) : (
+            os.atendimentos.map((a, idx) => (
+              <div key={idx} className="space-y-3 rounded-lg border border-border p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="grid flex-1 grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Input
+                      label="Data"
+                      type="date"
+                      value={a.data}
+                      onChange={(e) => setAtendimento(idx, { data: e.target.value })}
+                    />
+                    <Input
+                      label="Técnico"
+                      value={a.tecnico}
+                      onChange={(e) => setAtendimento(idx, { tecnico: e.target.value })}
+                      placeholder="Nome do técnico responsável"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removerAtendimento(idx)}
+                    className="mt-6 shrink-0 rounded-md p-2 text-text-muted transition hover:bg-surface-offset hover:text-danger"
+                    title="Remover este atendimento"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+                <Textarea
+                  label="Descrição"
+                  value={a.descricao}
+                  onChange={(e) => setAtendimento(idx, { descricao: e.target.value })}
+                  placeholder="Descreva detalhadamente o serviço realizado neste atendimento…"
+                  rows={4}
+                />
+              </div>
+            ))
+          )}
+          <Button
+            type="button"
+            variant="secondary"
+            icon={<Plus size={16} />}
+            onClick={adicionarAtendimento}
+          >
+            Adicionar atendimento
+          </Button>
+        </div>
       </Block>
 
       {/* Bloco 6 — Fotos */}

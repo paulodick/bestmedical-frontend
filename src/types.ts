@@ -17,6 +17,15 @@ export interface FotoOS {
   ordem?: number;
 }
 
+// Conjunto de atendimento da Ordem de Serviço: data + técnico + descrição.
+// Quantidade ilimitada — substitui o antigo campo único "descricaoServico".
+export interface AtendimentoOS {
+  id?: string;
+  data: string; // ISO yyyy-mm-dd
+  tecnico: string;
+  descricao: string;
+}
+
 export interface OrdemServico {
   id: string;
   numero: string;
@@ -55,6 +64,7 @@ export interface OrdemServico {
   // Listas
   itens: ItemOS[];
   fotos: FotoOS[];
+  atendimentos: AtendimentoOS[];
 }
 
 
@@ -78,6 +88,9 @@ export interface Parcela {
 
 export interface Orcamento {
   id: string;
+  // id do cliente vinculado (preenchido pelo servidor) — usado para listar
+  // os solicitantes cadastrados no dropdown/modal de envio.
+  clienteId?: string | null;
   // Bloco 1 — Identificação
   numero: string;
   data: string; // ISO yyyy-mm-dd
@@ -202,6 +215,9 @@ export interface EquipamentoProposta {
 
 export interface Proposta {
   id: string;
+  // id do cliente vinculado (preenchido pelo servidor) — usado para listar
+  // os solicitantes cadastrados no dropdown/modal de envio.
+  clienteId?: string | null;
   // Identificação
   numero: string;
   data: string; // ISO yyyy-mm-dd
@@ -281,6 +297,9 @@ export interface Contrato {
   id: string;
   numero: string;
   propostaId: string;
+  // id do cliente da proposta de origem — usado para listar os
+  // solicitantes cadastrados no modal de envio do contrato.
+  clienteId?: string | null;
   data: string; // ISO yyyy-mm-dd
   conteudoPadraoSnap: string;
   conteudoCustomizado: string;

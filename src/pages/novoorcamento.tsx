@@ -17,14 +17,16 @@ import { ItensGrid } from "../components/ItensGrid";
 import { Parcelamento } from "../components/Parcelamento";
 import { Modal } from "../components/Modal";
 import { OrcamentoPreview } from "../components/OrcamentoPreview";
+import { SolicitanteSelector } from "../components/SolicitanteSelector";
+import { ModalEnviarSolicitantes } from "../components/ModalEnviarSolicitantes";
 import type { Orcamento, Parcela } from "../types";
+import type { EnvioComSolicitantes } from "../lib/api";
 import { MARCAS, MODALIDADES } from "../types";
 import { useStore } from "../store";
 import {
   hojeISO,
   maskCEP,
   maskCNPJ,
-  maskTelefone,
   formatBRL,
   uid,
 } from "../lib/format";
@@ -48,6 +50,7 @@ interface NovoOrcamentoProps {
 function novoOrcamentoVazio(numero: string): Orcamento {
   return {
     id: uid(),
+    clienteId: null,
     numero,
     data: hojeISO(),
     cnpj: "",
@@ -143,6 +146,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
     // Aplica os dados encontrados sem apagar o que já estiver preenchido
     // pelo usuário (mantém valores atuais quando o cadastro vier vazio).
     const aplicar = (d: {
+      clienteId?: string | null;
       empresa?: string;
       cep?: string;
       endereco?: string;
@@ -159,6 +163,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
     }) => {
       setO((atual) => ({
         ...atual,
+        clienteId: atual.clienteId || d.clienteId || null,
         empresa: atual.empresa || d.empresa || "",
         cep: atual.cep || d.cep || "",
         endereco: atual.endereco || d.endereco || "",
@@ -208,6 +213,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
   };
 
   const [showPreview, setShowPreview] = useState(false);
+  const [modalEnviarAberto, setModalEnviarAberto] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [gerandoPdf, setGerandoPdf] = useState(false);
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
@@ -262,7 +268,8 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
     mostrarToast("Orçamento salvo com sucesso!");
   };
 
-  const handleEnviar = async () => {
+  // Abre o modal de seleção de solicitantes (não envia direto).
+  const handleAbrirModalEnviar = () => {
     if (!API_ENABLED) {
       mostrarToast("Envio de e-mail indisponível no modo offline.", "erro");
       return;
@@ -272,11 +279,18 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
       mostrarToast("Salve o orçamento antes de enviar por e-mail.", "erro");
       return;
     }
+    setModalEnviarAberto(true);
+  };
+
+  // Confirmação do modal: salva o orçamento e envia para os solicitantes
+  // selecionados (principal em "Para", demais em cópia).
+  const handleEnviar = async (envio: EnvioComSolicitantes) => {
     setEnviando(true);
     try {
       await api.atualizarOrcamento(o.id, o);
-      const r = await api.enviarOrcamento(o.id);
+      const r = await api.enviarOrcamento(o.id, envio);
       mostrarToast(r.mensagem, r.ok ? "sucesso" : "erro");
+      if (r.ok) setModalEnviarAberto(false);
     } catch (e) {
       mostrarToast(
         e instanceof Error ? e.message : "Falha ao enviar o orçamento.",
@@ -331,7 +345,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
           <Button
             variant="secondary"
             icon={enviando ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-            onClick={handleEnviar}
+            onClick={handleAbrirModalEnviar}
             disabled={enviando}
           >
             {enviando ? "Enviando…" : "Enviar orçamento"}
@@ -477,30 +491,14 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
           </Block>
 
           <Block title="Solicitante" step={4} icon={<User size={18} />}>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input
-                label="Solicitante"
-                value={o.solicitante}
-                onChange={(e) => setO({ ...o, solicitante: e.target.value })}
-              />
-              <Input
-                label="Setor"
-                value={o.setor}
-                onChange={(e) => setO({ ...o, setor: e.target.value })}
-              />
-              <Input
-                label="Telefone"
-                value={o.telefone}
-                onChange={(e) => setO({ ...o, telefone: maskTelefone(e.target.value) })}
-                maxLength={15}
-              />
-              <Input
-                label="E-mail"
-                type="email"
-                value={o.email}
-                onChange={(e) => setO({ ...o, email: e.target.value })}
-              />
-            </div>
+            <SolicitanteSelector
+              clienteId={o.clienteId}
+              nome={o.solicitante}
+              setor={o.setor}
+              telefone={o.telefone}
+              email={o.email}
+              onChange={(patch) => setO((atual) => ({ ...atual, ...patch }))}
+            />
           </Block>
 
           <Block title="Equipamento e Serviço" step={5}>
@@ -670,7 +668,17 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
         }
       >
         <div ref={printRef} className="bg-slate-100 p-4 print-area">
-          <OrcamentoPreview o={o} />
+          <ModalEnviarSolicitantes
+        open={modalEnviarAberto}
+        onClose={() => setModalEnviarAberto(false)}
+        clienteId={o.clienteId}
+        empresa={o.empresa}
+        titulo={`Enviar Orçamento ${o.numero}`}
+        enviando={enviando}
+        onEnviar={handleEnviar}
+      />
+
+            <OrcamentoPreview o={o} />
         </div>
       </Modal>
 
