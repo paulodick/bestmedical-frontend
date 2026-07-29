@@ -74,6 +74,10 @@ const STATUS_FILTRO: { key: string; label: string }[] = (() => {
   const mapa = new Map<string, string>();
   for (const s of STATUS_FIELDS) mapa.set(s.key as string, s.label);
   for (const s of STATUS_FIELDS_PC) mapa.set(s.key as string, s.label);
+  // Status financeiros (Controle Financeiro) também disponíveis aqui: antes
+  // não havia como filtrar por "Recebido" na tela de Controle.
+  mapa.set("pago", "Recebido");
+  mapa.set("atrasado", "Atrasado");
   // Cancelado fica disponível no filtro para reexibir itens ocultos.
   mapa.set("cancelado", "Cancelado");
   return [...mapa.entries()].map(([key, label]) => ({ key, label }));
@@ -266,7 +270,9 @@ export function Controle({
   const recarregarPropostas = () => {
     if (!API_ENABLED) return;
     api
-      .listarPropostas("?order=data_desc&pageSize=100")
+      // pageSize alto o suficiente para trazer todas as propostas de uma vez
+      // (mesmo motivo do ajuste em store.tsx para orçamentos).
+      .listarPropostas("?order=data_desc&pageSize=5000")
       .then((r) => setPropostas(r.data as Proposta[]))
       .catch((e) => console.error("Falha ao carregar propostas:", e));
   };
