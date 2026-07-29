@@ -58,7 +58,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!API_ENABLED) return;
     setCarregando(true);
     try {
-      const r = await api.listarOrcamentos("?order=data_desc&pageSize=100");
+      // pageSize alto o suficiente para trazer TODOS os orçamentos de uma vez
+      // (mesmo padrão usado para despesas/recebíveis/CRM). Com pageSize=100,
+      // orçamentos mais antigos que os 100 mais recentes ficavam invisíveis
+      // em todo o app (Controle, Controle Financeiro, busca por CNPJ etc.).
+      const r = await api.listarOrcamentos("?order=data_desc&pageSize=5000");
       setOrcamentos(r.data as Orcamento[]);
     } catch (e) {
       // eslint-disable-next-line no-console

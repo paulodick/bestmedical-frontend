@@ -137,7 +137,8 @@ export function ControleFinanceiro({
   const recarregarPropostas = () => {
     if (!API_ENABLED) return;
     api
-      .listarPropostas("?order=data_desc&pageSize=100")
+      // pageSize alto o suficiente para trazer todas as propostas de uma vez.
+      .listarPropostas("?order=data_desc&pageSize=5000")
       .then((r) => setPropostas(r.data as Proposta[]))
       .catch((e) => console.error("Falha ao carregar propostas:", e));
   };
