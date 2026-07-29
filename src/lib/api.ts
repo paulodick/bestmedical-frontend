@@ -76,6 +76,25 @@ export interface ListaResposta<T> {
   totalPages: number;
 }
 
+// Solicitante cadastrado (Contato do cliente) — usado no dropdown de
+// solicitante e no modal de envio (Novo Orçamento / Proposta de Contrato).
+export interface Solicitante {
+  id: string;
+  nome: string;
+  setor?: string | null;
+  telefone?: string | null;
+  email?: string | null;
+}
+
+// Payload de envio com seleção de solicitantes: quem recebe (contatoIds) e
+// qual deles é o principal (vai em "Para"; os demais em CC). Sem seleção
+// nenhuma, o backend cai no comportamento antigo (e-mail único do
+// solicitante do documento).
+export interface EnvioComSolicitantes {
+  contatoIds: string[];
+  principalContatoId?: string | null;
+}
+
 export const api = {
   // Autenticação (login por usuário, sem diferenciar maiúsc./minúsc.)
   login: (usuario: string, senha: string) =>
@@ -104,10 +123,10 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(patch),
     }),
-  enviarOrcamento: (id: string) =>
+  enviarOrcamento: (id: string, envio?: EnvioComSolicitantes) =>
     req<{ ok: boolean; mensagem: string; orcamento?: any }>(
       `/orcamentos/${id}/enviar`,
-      { method: "POST" },
+      { method: "POST", body: envio ? JSON.stringify(envio) : undefined },
     ),
   removerOrcamento: (id: string) =>
     req<void>(`/orcamentos/${id}`, { method: "DELETE" }),
@@ -123,6 +142,7 @@ export const api = {
   buscarClientePorCnpj: (cnpj: string) =>
     req<{
       encontrado: boolean;
+      clienteId?: string | null;
       cnpj: string;
       empresa: string;
       cep: string;
@@ -138,6 +158,19 @@ export const api = {
       telefone: string;
       email: string;
     } | null>(`/clientes/por-cnpj?cnpj=${encodeURIComponent(cnpj.trim())}`),
+
+  // ===== Solicitantes (contatos) de um cliente =====
+  // Usado no dropdown de solicitante e no modal de envio.
+  listarContatosCliente: (clienteId: string) =>
+    req<Solicitante[]>(`/clientes/${clienteId}/contatos`),
+  criarContatoCliente: (
+    clienteId: string,
+    dto: { nome: string; setor?: string; telefone?: string; email?: string },
+  ) =>
+    req<Solicitante>(`/clientes/${clienteId}/contatos`, {
+      method: "POST",
+      body: JSON.stringify(dto),
+    }),
 
   // ===== Propostas de Contrato =====
   listarPropostas: (query = "") =>
@@ -159,10 +192,10 @@ export const api = {
   buscarPropostaPorNumero: (numero: string) =>
     req<any>(`/propostas/por-numero/${encodeURIComponent(numero.trim())}`),
   // Envia a proposta por e-mail ao solicitante (com cópia de controle)
-  enviarProposta: (id: string) =>
+  enviarProposta: (id: string, envio?: EnvioComSolicitantes) =>
     req<{ ok: boolean; mensagem: string; proposta?: any }>(
       `/propostas/${id}/enviar`,
-      { method: "POST" },
+      { method: "POST", body: envio ? JSON.stringify(envio) : undefined },
     ),
   // Abre o PDF da proposta gerado pelo servidor numa nova aba (igual abrirPdf)
   abrirPdfProposta: async (id: string) => {
@@ -260,10 +293,10 @@ export const api = {
   atualizarContrato: (id: string, dados: any) =>
     req<any>(`/contratos/${id}`, { method: "PUT", body: JSON.stringify(dados) }),
   // Envia o contrato por e-mail ao solicitante (com cópia de controle).
-  enviarContrato: (id: string) =>
+  enviarContrato: (id: string, envio?: EnvioComSolicitantes) =>
     req<{ ok: boolean; mensagem: string; contrato?: any }>(
       `/contratos/${id}/enviar`,
-      { method: "POST" },
+      { method: "POST", body: envio ? JSON.stringify(envio) : undefined },
     ),
   // Abre o PDF do contrato gerado pelo servidor numa nova aba.
   abrirPdfContrato: async (id: string) => {
@@ -445,30 +478,40 @@ export const api = {
   // criamos um Blob local e abrimos a URL temporária — assim funciona mesmo
   // com a rota protegida.
   abrirPdf: async (id: string) => {
-    const res = await fetch(`${BASE}/orcamentos/${id}/pdf`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (!res.ok) {
-      let msg = `Erro ${res.status} ao gerar o PDF`;
-      try {
-        const body = await res.json();
-        msg = body?.message ? String(body.message) : msg;
-      } catch {
-        /* corpo não-JSON */
+    // Abre a aba em branco de forma SÍNCRONA (ainda dentro do gesto de
+    // clique do usuário), antes de qualquer await — ver comentário completo
+    // em abrirPdfOs/abrirPdfProposta/abrirPdfContrato (mesmo bug e correção).
+    const janela = window.open("", "_blank");
+    try {
+      const res = await fetch(`${BASE}/orcamentos/${id}/pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        let msg = `Erro ${res.status} ao gerar o PDF`;
+        try {
+          const body = await res.json();
+          msg = body?.message ? String(body.message) : msg;
+        } catch {
+          /* corpo não-JSON */
+        }
+        throw new Error(msg);
       }
-      throw new Error(msg);
-    }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const win = window.open(url, "_blank");
-    // Libera a URL temporária após a aba abrir (sem cortar o carregamento).
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    if (!win) {
-      // Bloqueio de pop-up: faz download como alternativa.
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `orcamento-${id}.pdf`;
-      a.click();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      if (janela) {
+        janela.location.href = url;
+      } else {
+        // Bloqueio de pop-up: faz download como alternativa.
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `orcamento-${id}.pdf`;
+        a.click();
+      }
+      // Libera a URL temporária após a aba abrir (sem cortar o carregamento).
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      janela?.close();
+      throw e;
     }
   },
 };

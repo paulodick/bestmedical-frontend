@@ -17,13 +17,15 @@ import {
 } from "lucide-react";
 import { Block, Button, Input, Select, Textarea } from "../components/ui";
 import { Modal } from "../components/Modal";
+import { SolicitanteSelector } from "../components/SolicitanteSelector";
+import { ModalEnviarSolicitantes } from "../components/ModalEnviarSolicitantes";
 import type { Proposta, EquipamentoProposta } from "../types";
+import type { EnvioComSolicitantes } from "../lib/api";
 import { MARCAS, MODALIDADES, TIPOS_CONTRATO, CONDICOES_PADRAO } from "../types";
 import {
   hojeISO,
   maskCEP,
   maskCNPJ,
-  maskTelefone,
   formatBRL,
   formatDataBR,
   moedaParaInput,
@@ -61,6 +63,7 @@ function equipamentoVazio(): EquipamentoProposta {
 function novaPropostaVazia(numero: string): Proposta {
   return {
     id: uid(),
+    clienteId: null,
     numero,
     data: hojeISO(),
     cnpj: "",
@@ -113,6 +116,7 @@ export function PropostaContrato({ propostaParaEditar }: PropostaContratoProps =
     () => propostaParaEditar || novaPropostaVazia(""),
   );
   const [showPreview, setShowPreview] = useState(false);
+  const [modalEnviarAberto, setModalEnviarAberto] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [gerandoPdf, setGerandoPdf] = useState(false);
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
@@ -166,6 +170,7 @@ export function PropostaContrato({ propostaParaEditar }: PropostaContratoProps =
       if (c && c.encontrado) {
         setP((atual) => ({
           ...atual,
+          clienteId: atual.clienteId || c.clienteId || null,
           empresa: atual.empresa || c.empresa || "",
           cep: atual.cep || c.cep || "",
           endereco: atual.endereco || c.endereco || "",
@@ -359,18 +364,26 @@ export function PropostaContrato({ propostaParaEditar }: PropostaContratoProps =
     }
   };
 
-  const handleEnviar = async () => {
+  // Salva a proposta e abre o modal de seleção de solicitantes.
+  const handleAbrirModalEnviar = async () => {
     if (!API_ENABLED) {
       mostrarToast("Envio de e-mail indisponível no modo offline.", "erro");
       return;
     }
+    const salva = await salvarProposta();
+    if (!salva) return;
+    setModalEnviarAberto(true);
+  };
+
+  // Confirmação do modal: envia para os solicitantes selecionados
+  // (principal em "Para", demais em cópia).
+  const handleEnviar = async (envio: EnvioComSolicitantes) => {
     setEnviando(true);
     try {
-      const salva = await salvarProposta();
-      if (!salva) return;
-      const r = await api.enviarProposta(salva.id);
+      const r = await api.enviarProposta(p.id, envio);
       mostrarToast(r.mensagem, r.ok ? "sucesso" : "erro");
       if (r.ok && r.proposta) setP(r.proposta as Proposta);
+      if (r.ok) setModalEnviarAberto(false);
     } catch (e) {
       mostrarToast(
         e instanceof Error ? e.message : "Falha ao enviar a proposta.",
@@ -412,7 +425,7 @@ export function PropostaContrato({ propostaParaEditar }: PropostaContratoProps =
           <Button
             variant="secondary"
             icon={enviando ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-            onClick={handleEnviar}
+            onClick={handleAbrirModalEnviar}
             disabled={enviando}
           >
             {enviando ? "Enviando…" : "Enviar proposta"}
@@ -556,30 +569,14 @@ export function PropostaContrato({ propostaParaEditar }: PropostaContratoProps =
           </Block>
 
           <Block title="Solicitante" step={4} icon={<User size={18} />}>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input
-                label="Solicitante"
-                value={p.solicitante}
-                onChange={(e) => setP({ ...p, solicitante: e.target.value })}
-              />
-              <Input
-                label="Setor"
-                value={p.setor}
-                onChange={(e) => setP({ ...p, setor: e.target.value })}
-              />
-              <Input
-                label="Telefone"
-                value={p.telefone}
-                onChange={(e) => setP({ ...p, telefone: maskTelefone(e.target.value) })}
-                maxLength={15}
-              />
-              <Input
-                label="E-mail"
-                type="email"
-                value={p.email}
-                onChange={(e) => setP({ ...p, email: e.target.value })}
-              />
-            </div>
+            <SolicitanteSelector
+              clienteId={p.clienteId}
+              nome={p.solicitante}
+              setor={p.setor}
+              telefone={p.telefone}
+              email={p.email}
+              onChange={(patch) => setP((atual) => ({ ...atual, ...patch }))}
+            />
           </Block>
 
           <Block
@@ -812,6 +809,16 @@ export function PropostaContrato({ propostaParaEditar }: PropostaContratoProps =
           </Block>
         </div>
       </div>
+
+      <ModalEnviarSolicitantes
+        open={modalEnviarAberto}
+        onClose={() => setModalEnviarAberto(false)}
+        clienteId={p.clienteId}
+        empresa={p.empresa}
+        titulo={`Enviar Proposta ${p.numero}`}
+        enviando={enviando}
+        onEnviar={handleEnviar}
+      />
 
       {/* Modal de visualização */}
       <Modal

@@ -9,9 +9,11 @@ import {
   FileSignature,
 } from "lucide-react";
 import { Block, Button, Textarea } from "../components/ui";
+import { ModalEnviarSolicitantes } from "../components/ModalEnviarSolicitantes";
 import type { Contrato } from "../types";
 import { formatDataBR } from "../lib/format";
 import { api, API_ENABLED } from "../lib/api";
+import type { EnvioComSolicitantes } from "../lib/api";
 
 interface ContratoPageProps {
   // O contrato é gerado/aberto a partir da proposta de origem.
@@ -26,6 +28,7 @@ export function ContratoPage({ propostaId, onVoltar }: ContratoPageProps) {
   const [salvando, setSalvando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [pdfCarregando, setPdfCarregando] = useState(false);
+  const [modalEnviarAberto, setModalEnviarAberto] = useState(false);
   const [mensagem, setMensagem] = useState<
     { tipo: "sucesso" | "erro"; texto: string } | null
   >(null);
@@ -97,15 +100,21 @@ export function ContratoPage({ propostaId, onVoltar }: ContratoPageProps) {
     }
   };
 
-  const enviar = async () => {
+  const handleAbrirModalEnviar = () => {
+    if (!contrato) return;
+    setModalEnviarAberto(true);
+  };
+
+  const enviar = async (envio: EnvioComSolicitantes) => {
     if (!contrato) return;
     setEnviando(true);
     setMensagem(null);
     try {
-      const resp = await api.enviarContrato(contrato.id);
+      const resp = await api.enviarContrato(contrato.id, envio);
       setMensagem({ tipo: resp.ok ? "sucesso" : "erro", texto: resp.mensagem });
       if (resp.ok) {
         setContrato((prev) => (prev ? { ...prev, enviado: true } : prev));
+        setModalEnviarAberto(false);
       }
     } catch (e) {
       setMensagem({
@@ -231,7 +240,7 @@ export function ContratoPage({ propostaId, onVoltar }: ContratoPageProps) {
                   <Send size={16} />
                 )
               }
-              onClick={enviar}
+              onClick={handleAbrirModalEnviar}
               disabled={enviando}
             >
               {enviando ? "Enviando…" : "Enviar ao cliente"}
@@ -239,6 +248,15 @@ export function ContratoPage({ propostaId, onVoltar }: ContratoPageProps) {
           </>
         )}
       </div>
+
+      <ModalEnviarSolicitantes
+        open={modalEnviarAberto}
+        onClose={() => setModalEnviarAberto(false)}
+        clienteId={contrato.clienteId}
+        titulo={`Enviar Contrato ${contrato.numero}`}
+        enviando={enviando}
+        onEnviar={enviar}
+      />
 
       {/* Toast */}
       {mensagem && (
