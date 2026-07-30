@@ -93,6 +93,9 @@ export interface Solicitante {
 export interface EnvioComSolicitantes {
   contatoIds: string[];
   principalContatoId?: string | null;
+  // Texto livre exibido no corpo do e-mail ("referente à ..."). Preenchido
+  // no modal de envio (padrão: primeiro item de Itens e Serviços), editável.
+  referenteA?: string;
 }
 
 export const api = {

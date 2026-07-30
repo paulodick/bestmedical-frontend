@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Send } from "lucide-react";
 import { Modal } from "./Modal";
-import { Button } from "./ui";
+import { Button, Input } from "./ui";
 import { api, API_ENABLED } from "../lib/api";
 import type { Solicitante, EnvioComSolicitantes } from "../lib/api";
 
@@ -14,6 +14,9 @@ interface ModalEnviarSolicitantesProps {
   titulo: string;
   enviando: boolean;
   onEnviar: (envio: EnvioComSolicitantes) => void;
+  // Valor inicial do campo "Referente à" (ex.: nome do primeiro item de
+  // Itens e Serviços do orçamento). Fica editável antes do envio.
+  referenciaPadrao?: string;
 }
 
 // Modal de envio com a lista de solicitantes cadastrados do cliente. Cada
@@ -29,16 +32,19 @@ export function ModalEnviarSolicitantes({
   titulo,
   enviando,
   onEnviar,
+  referenciaPadrao,
 }: ModalEnviarSolicitantesProps) {
   const [contatos, setContatos] = useState<Solicitante[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [principal, setPrincipal] = useState<string | null>(null);
+  const [referenteA, setReferenteA] = useState("");
 
   useEffect(() => {
     if (!open) return;
     setSelecionados(new Set());
     setPrincipal(null);
+    setReferenteA(referenciaPadrao || "");
     if (!clienteId || !API_ENABLED) {
       setContatos([]);
       return;
@@ -55,6 +61,7 @@ export function ModalEnviarSolicitantes({
       })
       .catch(() => setContatos([]))
       .finally(() => setCarregando(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, clienteId]);
 
   const toggleSelecionado = (id: string) => {
@@ -81,6 +88,7 @@ export function ModalEnviarSolicitantes({
     onEnviar({
       contatoIds: [...selecionados],
       principalContatoId: principal,
+      referenteA: referenteA.trim() || undefined,
     });
   };
 
@@ -107,6 +115,12 @@ export function ModalEnviarSolicitantes({
       }
     >
       <div className="space-y-4 px-5 py-4">
+        <Input
+          label="Referente à"
+          value={referenteA}
+          onChange={(e) => setReferenteA(e.target.value)}
+          placeholder="Ex.: manutenção preventiva do equipamento X"
+        />
         {!principal && !semSelecao && (
           <p className="rounded-md bg-surface-offset px-3 py-2 text-[12px] text-text-muted">
             Nenhum solicitante marcado como principal: o e-mail será aberto com a
