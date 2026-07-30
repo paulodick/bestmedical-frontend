@@ -38,7 +38,11 @@ function normalizar(o: OrcamentoSeed | Orcamento): Orcamento {
 // A interface pública do store é a MESMA — os componentes não mudam.
 interface Store {
   orcamentos: Orcamento[];
-  salvar: (o: Orcamento) => void;
+  // Retorna o orçamento salvo (com o id definitivo atribuído pelo
+  // servidor ao criar) — quem chama deve atualizar seu estado local com
+  // esse retorno, já que o id gerado no cliente (uid()) nunca é o mesmo
+  // usado no banco. Resolve para null se o salvamento falhar.
+  salvar: (o: Orcamento) => Promise<Orcamento | null>;
   atualizar: (id: string, patch: Partial<Orcamento>) => void;
   remover: (id: string) => void;
   carregando: boolean;
@@ -96,16 +100,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             }
             return [o, ...prev];
           });
-          return;
+          return Promise.resolve(o);
         }
         // ===== modo real =====
+        // Importante: o id local (uid()) é só um placeholder de React —
+        // ao criar, o servidor gera o id definitivo (Prisma @default),
+        // diferente do id local. Por isso devolvemos o registro que veio
+        // da API (com o id real), para quem chamou atualizar seu estado.
         const existe = orcamentos.some((p) => p.id === o.id);
         const acao = existe
           ? api.atualizarOrcamento(o.id, o)
           : api.criarOrcamento(o);
-        acao
-          .then(() => recarregar())
-          .catch((e) => console.error("Falha ao salvar:", e));
+        return acao
+          .then((salvo) => {
+            recarregar();
+            return salvo as Orcamento;
+          })
+          .catch((e) => {
+            console.error("Falha ao salvar:", e);
+            return null;
+          });
       },
 
       atualizar: (id, patch) => {
