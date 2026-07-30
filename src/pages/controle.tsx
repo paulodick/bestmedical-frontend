@@ -10,6 +10,8 @@ import {
   Upload,
   CheckCircle2,
   ChevronDown,
+  ChevronUp,
+  ArrowUpDown,
   Pencil,
   Check,
   Trash2,
@@ -244,6 +246,21 @@ export function Controle({
   // Filtro de status agora é multi-seleção (checkboxes). Vazio = padrão.
   const [statusSelecionados, setStatusSelecionados] = useState<string[]>([]);
   const [statusAberto, setStatusAberto] = useState(false);
+
+  // Ordenação da tabela — clique no cabeçalho da coluna. Padrão preserva o
+  // comportamento antigo (mais recente primeiro, por número).
+  type CampoOrdenacao = "numero" | "data" | "empresa" | "total";
+  const [sortCampo, setSortCampo] = useState<CampoOrdenacao>("numero");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const ordenarPor = (campo: CampoOrdenacao) => {
+    if (sortCampo === campo) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortCampo(campo);
+      // Data/Número/Valor: mais recente ou maior primeiro. Empresa: A-Z.
+      setSortDir(campo === "empresa" ? "asc" : "desc");
+    }
+  };
   const statusRef = useRef<HTMLDivElement>(null);
 
   const [preview, setPreview] = useState<Orcamento | null>(null);
@@ -566,8 +583,28 @@ export function Controle({
         }
         return true;
       })
-      .sort((a, b) => b.numero.localeCompare(a.numero));
-  }, [base, busca, fEmpresa, fCnpj, fData, statusSelecionados]);
+      .sort((a, b) => {
+        let cmp = 0;
+        switch (sortCampo) {
+          case "data":
+            cmp = a.data.localeCompare(b.data);
+            break;
+          case "empresa":
+            cmp = a.empresa.localeCompare(b.empresa, "pt-BR", {
+              sensitivity: "base",
+            });
+            break;
+          case "total":
+            cmp = a.total - b.total;
+            break;
+          case "numero":
+          default:
+            cmp = a.numero.localeCompare(b.numero);
+            break;
+        }
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+  }, [base, busca, fEmpresa, fCnpj, fData, statusSelecionados, sortCampo, sortDir]);
 
   const temFiltro = !!(
     fTipo ||
@@ -712,10 +749,82 @@ export function Controle({
           <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
             <tr>
               <th className="px-3 py-2.5 font-medium">Enviado</th>
-              <th className="px-3 py-2.5 font-medium">Nº</th>
-              <th className="px-3 py-2.5 font-medium">Data</th>
-              <th className="px-3 py-2.5 font-medium">Empresa</th>
-              <th className="px-3 py-2.5 font-medium">Valor Total</th>
+              <th className="px-3 py-2.5 font-medium">
+                <button
+                  type="button"
+                  onClick={() => ordenarPor("numero")}
+                  className="inline-flex items-center gap-1 font-medium text-slate-500 hover:text-slate-900"
+                  title="Ordenar por número"
+                >
+                  Nº
+                  {sortCampo === "numero" ? (
+                    sortDir === "asc" ? (
+                      <ChevronUp size={13} />
+                    ) : (
+                      <ChevronDown size={13} />
+                    )
+                  ) : (
+                    <ArrowUpDown size={13} className="text-slate-300" />
+                  )}
+                </button>
+              </th>
+              <th className="px-3 py-2.5 font-medium">
+                <button
+                  type="button"
+                  onClick={() => ordenarPor("data")}
+                  className="inline-flex items-center gap-1 font-medium text-slate-500 hover:text-slate-900"
+                  title="Ordenar por data"
+                >
+                  Data
+                  {sortCampo === "data" ? (
+                    sortDir === "asc" ? (
+                      <ChevronUp size={13} />
+                    ) : (
+                      <ChevronDown size={13} />
+                    )
+                  ) : (
+                    <ArrowUpDown size={13} className="text-slate-300" />
+                  )}
+                </button>
+              </th>
+              <th className="px-3 py-2.5 font-medium">
+                <button
+                  type="button"
+                  onClick={() => ordenarPor("empresa")}
+                  className="inline-flex items-center gap-1 font-medium text-slate-500 hover:text-slate-900"
+                  title="Ordenar por ordem alfabética"
+                >
+                  Empresa
+                  {sortCampo === "empresa" ? (
+                    sortDir === "asc" ? (
+                      <ChevronUp size={13} />
+                    ) : (
+                      <ChevronDown size={13} />
+                    )
+                  ) : (
+                    <ArrowUpDown size={13} className="text-slate-300" />
+                  )}
+                </button>
+              </th>
+              <th className="px-3 py-2.5 font-medium">
+                <button
+                  type="button"
+                  onClick={() => ordenarPor("total")}
+                  className="inline-flex items-center gap-1 font-medium text-slate-500 hover:text-slate-900"
+                  title="Ordenar por valor"
+                >
+                  Valor Total
+                  {sortCampo === "total" ? (
+                    sortDir === "asc" ? (
+                      <ChevronUp size={13} />
+                    ) : (
+                      <ChevronDown size={13} />
+                    )
+                  ) : (
+                    <ArrowUpDown size={13} className="text-slate-300" />
+                  )}
+                </button>
+              </th>
               <th className="px-3 py-2.5 font-medium">Status</th>
               <th className="px-3 py-2.5 font-medium text-center">Ações</th>
             </tr>
