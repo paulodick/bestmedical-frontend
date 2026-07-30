@@ -202,10 +202,21 @@ export function PropostaContrato({ propostaParaEditar }: PropostaContratoProps =
     }
   };
 
+  // Mesma correção aplicada em novoorcamento.tsx: preserva o valor já
+  // preenchido quando o ViaCEP devolve um campo vazio (comum para CEPs
+  // "de faixa"), e usa atualização funcional para não perder edições
+  // feitas enquanto a consulta assíncrona ainda estava em andamento.
   const handleBuscarCep = async () => {
     if (p.cep.length < 8) return;
     const res = await consultarCEP(p.cep);
-    if (res) setP({ ...p, ...res });
+    if (!res) return;
+    setP((prev) => ({
+      ...prev,
+      endereco: res.endereco || prev.endereco,
+      bairro: res.bairro || prev.bairro,
+      cidade: res.cidade || prev.cidade,
+      estado: res.estado || prev.estado,
+    }));
   };
 
   // ===== Equipamentos =====
