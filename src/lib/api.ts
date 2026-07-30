@@ -93,8 +93,14 @@ export interface Solicitante {
 export interface EnvioComSolicitantes {
   contatoIds: string[];
   principalContatoId?: string | null;
-  // Texto livre exibido no corpo do e-mail ("referente à ..."). Preenchido
-  // no modal de envio (padrão: primeiro item de Itens e Serviços), editável.
+  // Linha de saudação do e-mail, usada como está (ex.: "À Clínica X" ou
+  // "Ao Hospital Y" — o artigo é digitado pelo usuário, pois depende do
+  // gênero gramatical do nome do cliente). Padrão: "À <Razão Social>".
+  destinatario?: string;
+  // Texto livre exibido no corpo do e-mail após "Segue em anexo ...
+  // referente ...". Já inclui o artigo ("à"/"ao") escolhido pelo usuário.
+  // Preenchido no modal de envio (padrão: "à " + primeiro item de Itens e
+  // Serviços), editável.
   referenteA?: string;
 }
 
