@@ -676,6 +676,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
         titulo={`Enviar Orçamento ${o.numero}`}
         enviando={enviando}
         onEnviar={handleEnviar}
+        referenciaPadrao={o.itens[0]?.item ?? ""}
       />
 
             <OrcamentoPreview o={o} />
