@@ -3,6 +3,8 @@ import {
   Search,
   X,
   ChevronDown,
+  ChevronUp,
+  ArrowUpDown,
   Calendar,
   ClipboardList,
   Plus,
@@ -14,7 +16,7 @@ import { useStore } from "../store";
 import { useAuth } from "../auth";
 import type { Orcamento, Proposta } from "../types";
 import { Modal } from "../components/Modal";
-import { Button, Input, Select, Textarea } from "../components/ui";
+import { Button, Input, Select, Textarea, StatusPill } from "../components/ui";
 import { formatBRL, formatDataBR, hojeISO } from "../lib/format";
 import { totalFinal } from "../lib/calc";
 import { api, API_ENABLED } from "../lib/api";
@@ -123,6 +125,22 @@ export function ControleFinanceiro({
   const [busca, setBusca] = useState("");
   const [fEmpresa, setFEmpresa] = useState("");
   const [statusSelecionados, setStatusSelecionados] = useState<string[]>([]);
+
+  // Ordenação da tabela — clique no cabeçalho da coluna. Padrão preserva o
+  // comportamento antigo (data de pagamento mais próxima primeiro).
+  type CampoOrdenacao = "numero" | "data" | "empresa" | "total" | "dataPagamento";
+  const [sortCampo, setSortCampo] = useState<CampoOrdenacao>("dataPagamento");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const ordenarPor = (campo: CampoOrdenacao) => {
+    if (sortCampo === campo) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortCampo(campo);
+      // Empresa: A-Z por padrão. Datas: mais próxima/antiga primeiro. Nº e
+      // Valor: maior primeiro.
+      setSortDir(campo === "empresa" || campo === "dataPagamento" ? "asc" : "desc");
+    }
+  };
   const [statusAberto, setStatusAberto] = useState(false);
   const statusRef = useRef<HTMLDivElement>(null);
 
@@ -419,13 +437,35 @@ export function ControleFinanceiro({
         return true;
       })
       .sort((a, b) => {
-        // Ordena por data de pagamento (mais próxima primeiro); sem data ao fim.
-        const da = a.dataPagamento || "9999-99-99";
-        const db = b.dataPagamento || "9999-99-99";
-        if (da !== db) return da.localeCompare(db);
-        return b.numero.localeCompare(a.numero);
+        let cmp = 0;
+        switch (sortCampo) {
+          case "data":
+            cmp = a.data.localeCompare(b.data);
+            break;
+          case "empresa":
+            cmp = a.empresa.localeCompare(b.empresa, "pt-BR", {
+              sensitivity: "base",
+            });
+            break;
+          case "total":
+            cmp = a.total - b.total;
+            break;
+          case "dataPagamento": {
+            // Sem data de pagamento sempre vai para o fim, nas duas direções.
+            const da = a.dataPagamento || "9999-99-99";
+            const db = b.dataPagamento || "9999-99-99";
+            cmp = da.localeCompare(db);
+            break;
+          }
+          case "numero":
+          default:
+            cmp = a.numero.localeCompare(b.numero);
+            break;
+        }
+        if (cmp === 0) cmp = b.numero.localeCompare(a.numero);
+        return sortDir === "asc" ? cmp : -cmp;
       });
-  }, [registros, busca, fEmpresa, statusSelecionados]);
+  }, [registros, busca, fEmpresa, statusSelecionados, sortCampo, sortDir]);
 
   const temFiltro = !!(busca || fEmpresa || statusSelecionados.length);
 
@@ -586,11 +626,101 @@ export function ControleFinanceiro({
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-slate-500">
             <tr>
-              <th className="px-3 py-2.5 font-medium">Nº</th>
-              <th className="px-3 py-2.5 font-medium">Data</th>
-              <th className="px-3 py-2.5 font-medium">Empresa</th>
-              <th className="px-3 py-2.5 font-medium">Valor Total</th>
-              <th className="px-3 py-2.5 font-medium">Data Pagamento</th>
+              <th className="px-3 py-2.5 font-medium">
+                <button
+                  type="button"
+                  onClick={() => ordenarPor("numero")}
+                  className="inline-flex items-center gap-1 font-medium text-slate-500 hover:text-slate-900"
+                  title="Ordenar por número"
+                >
+                  Nº
+                  {sortCampo === "numero" ? (
+                    sortDir === "asc" ? (
+                      <ChevronUp size={13} />
+                    ) : (
+                      <ChevronDown size={13} />
+                    )
+                  ) : (
+                    <ArrowUpDown size={13} className="text-slate-300" />
+                  )}
+                </button>
+              </th>
+              <th className="px-3 py-2.5 font-medium">
+                <button
+                  type="button"
+                  onClick={() => ordenarPor("data")}
+                  className="inline-flex items-center gap-1 font-medium text-slate-500 hover:text-slate-900"
+                  title="Ordenar por data"
+                >
+                  Data
+                  {sortCampo === "data" ? (
+                    sortDir === "asc" ? (
+                      <ChevronUp size={13} />
+                    ) : (
+                      <ChevronDown size={13} />
+                    )
+                  ) : (
+                    <ArrowUpDown size={13} className="text-slate-300" />
+                  )}
+                </button>
+              </th>
+              <th className="px-3 py-2.5 font-medium">
+                <button
+                  type="button"
+                  onClick={() => ordenarPor("empresa")}
+                  className="inline-flex items-center gap-1 font-medium text-slate-500 hover:text-slate-900"
+                  title="Ordenar por ordem alfabética"
+                >
+                  Empresa
+                  {sortCampo === "empresa" ? (
+                    sortDir === "asc" ? (
+                      <ChevronUp size={13} />
+                    ) : (
+                      <ChevronDown size={13} />
+                    )
+                  ) : (
+                    <ArrowUpDown size={13} className="text-slate-300" />
+                  )}
+                </button>
+              </th>
+              <th className="px-3 py-2.5 font-medium">
+                <button
+                  type="button"
+                  onClick={() => ordenarPor("total")}
+                  className="inline-flex items-center gap-1 font-medium text-slate-500 hover:text-slate-900"
+                  title="Ordenar por valor"
+                >
+                  Valor Total
+                  {sortCampo === "total" ? (
+                    sortDir === "asc" ? (
+                      <ChevronUp size={13} />
+                    ) : (
+                      <ChevronDown size={13} />
+                    )
+                  ) : (
+                    <ArrowUpDown size={13} className="text-slate-300" />
+                  )}
+                </button>
+              </th>
+              <th className="px-3 py-2.5 font-medium">
+                <button
+                  type="button"
+                  onClick={() => ordenarPor("dataPagamento")}
+                  className="inline-flex items-center gap-1 font-medium text-slate-500 hover:text-slate-900"
+                  title="Ordenar por data de pagamento"
+                >
+                  Data Pagamento
+                  {sortCampo === "dataPagamento" ? (
+                    sortDir === "asc" ? (
+                      <ChevronUp size={13} />
+                    ) : (
+                      <ChevronDown size={13} />
+                    )
+                  ) : (
+                    <ArrowUpDown size={13} className="text-slate-300" />
+                  )}
+                </button>
+              </th>
               <th className="px-3 py-2.5 font-medium">Status</th>
               <th className="px-3 py-2.5 text-center font-medium">Ações</th>
             </tr>
@@ -713,45 +843,30 @@ export function ControleFinanceiro({
                         </button>
                       )}
                     </td>
-                    {/* Botões de status financeiro */}
+                    {/* Botões de status financeiro — mesmo padrão (StatusPill)
+                        usado na página Controle. */}
                     <td className="px-3 py-2.5">
                       <div className="flex flex-wrap gap-1.5">
-                        {/* Pago — texto verde (padrão) */}
-                        <button
-                          type="button"
+                        <StatusPill
+                          on={r.pago}
+                          label="Pago"
                           onClick={() => togglePago(r)}
-                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition ${
-                            r.pago
-                              ? "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300"
-                              : "bg-surface-offset text-emerald-600 hover:bg-emerald-50"
-                          }`}
-                        >
-                          Pago
-                        </button>
-                        {/* Atrasado — texto vermelho */}
-                        <button
-                          type="button"
+                          interactive
+                        />
+                        <StatusPill
+                          on={r.atrasado}
+                          label="Atrasado"
                           onClick={() => toggleAtrasado(r)}
-                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition ${
-                            r.atrasado
-                              ? "bg-rose-100 text-rose-700 ring-1 ring-rose-300"
-                              : "bg-surface-offset text-rose-600 hover:bg-rose-50"
-                          }`}
-                        >
-                          Atrasado
-                        </button>
-                        {/* Cancelado — fundo vermelho, texto branco em negrito */}
-                        <button
-                          type="button"
+                          interactive
+                          tom="danger"
+                        />
+                        <StatusPill
+                          on={r.cancelado}
+                          label="Cancelado"
                           onClick={() => toggleCancelado(r)}
-                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold transition ${
-                            r.cancelado
-                              ? "bg-rose-600 text-white ring-1 ring-rose-700"
-                              : "bg-rose-600 text-white opacity-70 hover:opacity-100"
-                          }`}
-                        >
-                          Cancelado
-                        </button>
+                          interactive
+                          tom="danger"
+                        />
                       </div>
                     </td>
                     {/* Ações: registrar pagamento (todos) + editar/excluir (avulsos) */}
