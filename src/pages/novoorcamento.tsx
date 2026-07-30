@@ -329,12 +329,26 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
     return gerarParcelas(numParcelas, total, o.parcelas);
   };
 
+  // Bug reportado: às vezes o endereço "sumia" ao sair do campo CEP e não
+  // preenchia mais depois disso. Duas causas, ambas corrigidas abaixo:
+  // 1) O ViaCEP retorna logradouro vazio para alguns CEPs "de faixa"
+  //    (bastante comuns) mesmo sendo válidos — o merge antigo aplicava
+  //    esse vazio por cima do endereço já preenchido, apagando-o.
+  // 2) setO({ ...o, ...res }) usava o "o" capturado no momento do blur; se
+  //    o usuário editasse outro campo enquanto a consulta (assíncrona)
+  //    ainda estava em andamento, essa edição era perdida quando a
+  //    resposta chegava. Trocado para atualização funcional (prev).
   const handleBuscarCep = async () => {
     if (o.cep.length < 8) return;
     const res = await consultarCEP(o.cep);
-    if (res) {
-      setO({ ...o, ...res });
-    }
+    if (!res) return;
+    setO((prev) => ({
+      ...prev,
+      endereco: res.endereco || prev.endereco,
+      bairro: res.bairro || prev.bairro,
+      cidade: res.cidade || prev.cidade,
+      estado: res.estado || prev.estado,
+    }));
   };
 
   return (
