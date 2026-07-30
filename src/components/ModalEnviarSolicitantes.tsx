@@ -19,6 +19,8 @@ interface ModalEnviarSolicitantesProps {
   referenciaPadrao?: string;
 }
 
+const artigoPadrao = (empresa?: string) => `À ${(empresa || "cliente").trim()}`;
+
 // Modal de envio com a lista de solicitantes cadastrados do cliente. Cada
 // linha tem um checkbox para incluir no envio e outro para marcar quem é o
 // "principal" (recebe em "Para"; os demais selecionados vão em cópia). Sem
@@ -38,13 +40,15 @@ export function ModalEnviarSolicitantes({
   const [carregando, setCarregando] = useState(false);
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [principal, setPrincipal] = useState<string | null>(null);
+  const [destinatario, setDestinatario] = useState("");
   const [referenteA, setReferenteA] = useState("");
 
   useEffect(() => {
     if (!open) return;
     setSelecionados(new Set());
     setPrincipal(null);
-    setReferenteA(referenciaPadrao || "");
+    setDestinatario(artigoPadrao(empresa));
+    setReferenteA(referenciaPadrao ? `à ${referenciaPadrao}` : "");
     if (!clienteId || !API_ENABLED) {
       setContatos([]);
       return;
@@ -88,6 +92,7 @@ export function ModalEnviarSolicitantes({
     onEnviar({
       contatoIds: [...selecionados],
       principalContatoId: principal,
+      destinatario: destinatario.trim() || undefined,
       referenteA: referenteA.trim() || undefined,
     });
   };
@@ -116,10 +121,16 @@ export function ModalEnviarSolicitantes({
     >
       <div className="space-y-4 px-5 py-4">
         <Input
-          label="Referente à"
+          label="Destinatário"
+          value={destinatario}
+          onChange={(e) => setDestinatario(e.target.value)}
+          placeholder="Ex.: À Clínica X — ou Ao Hospital Y"
+        />
+        <Input
+          label="Referente"
           value={referenteA}
           onChange={(e) => setReferenteA(e.target.value)}
-          placeholder="Ex.: manutenção preventiva do equipamento X"
+          placeholder="Ex.: à manutenção preventiva do equipamento X"
         />
         {!principal && !semSelecao && (
           <p className="rounded-md bg-surface-offset px-3 py-2 text-[12px] text-text-muted">
