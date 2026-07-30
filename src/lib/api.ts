@@ -180,6 +180,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify(dto),
     }),
+  // Edita um solicitante já cadastrado (ex.: corrigir e-mail) — usado no
+  // modal de envio.
+  atualizarContatoCliente: (
+    id: string,
+    dto: { nome: string; setor?: string; telefone?: string; email?: string },
+  ) =>
+    req<Solicitante>(`/contatos/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(dto),
+    }),
 
   // ===== Propostas de Contrato =====
   listarPropostas: (query = "") =>
