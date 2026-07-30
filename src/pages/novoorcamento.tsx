@@ -216,6 +216,10 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
   const [modalEnviarAberto, setModalEnviarAberto] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [gerandoPdf, setGerandoPdf] = useState(false);
+  // Já existe no servidor? (edição de um orçamento existente, ou já salvo
+  // nesta sessão). Enviar/Gerar PDF oficial dependem disso — não do id
+  // local, que é só um placeholder de React até o primeiro salvamento.
+  const [salvo, setSalvo] = useState<boolean>(!!orcamentoParaEditar);
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
   const [toast, setToast] = useState<{ tipo: "sucesso" | "erro"; msg: string } | null>(
     null
@@ -234,7 +238,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
   //   (Imprimir > Salvar como PDF). Antes o botão chamava window.print() sem
   //   abrir a pré-visualização, o que gerava página em branco.
   const handleGerarPdf = async () => {
-    if (API_ENABLED && o.id) {
+    if (API_ENABLED && salvo) {
       setGerandoPdf(true);
       try {
         await api.abrirPdf(o.id);
@@ -248,23 +252,37 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
       }
       return;
     }
-    // Sem id (ainda não salvo) ou modo demo: abre a pré-visualização e imprime.
+    // Ainda não salvo no servidor (ou modo demo): abre a pré-visualização e
+    // imprime. Antes disso checava `o.id`, mas esse id é gerado no cliente
+    // e nunca é vazio — o PDF oficial só existe depois de salvar de verdade.
     setShowPreview(true);
     // Aguarda o modal montar a área de impressão antes de chamar a impressão.
     setTimeout(() => window.print(), 350);
-    if (API_ENABLED && !o.id) {
+    if (API_ENABLED && !salvo) {
       mostrarToast(
         "Dica: salve o orçamento para baixar o PDF oficial do servidor.",
       );
     }
   };
 
-  const handleSalvar = () => {
+  const handleSalvar = async () => {
     if (!o.numero || !o.empresa) {
       mostrarToast("Preencha ao menos o número e a empresa.", "erro");
       return;
     }
-    salvar(o);
+    const resultado = await salvar(o);
+    if (!resultado) {
+      mostrarToast("Falha ao salvar o orçamento.", "erro");
+      return;
+    }
+    // O id local (gerado no cliente) nunca é o id definitivo do servidor:
+    // sincroniza o formulário com o registro real assim que ele volta da
+    // API, para que "Enviar" e "Gerar PDF" (que dependem do id certo)
+    // funcionem imediatamente, sem precisar sair e voltar à tela.
+    if (API_ENABLED) {
+      setO((prev) => ({ ...prev, ...resultado }));
+      setSalvo(true);
+    }
     mostrarToast("Orçamento salvo com sucesso!");
   };
 
@@ -274,8 +292,7 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
       mostrarToast("Envio de e-mail indisponível no modo offline.", "erro");
       return;
     }
-    const existe = orcamentos.some((x) => x.id === o.id);
-    if (!existe) {
+    if (!salvo) {
       mostrarToast("Salve o orçamento antes de enviar por e-mail.", "erro");
       return;
     }
@@ -323,19 +340,29 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
   return (
     <div className="mx-auto max-w-5xl space-y-6 pb-24">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             {orcamentoParaEditar ? `Editar Orçamento ${o.numero}` : "Novo Orçamento"}
           </h1>
           <p className="text-sm text-slate-500">Preencha os dados abaixo para gerar a proposta.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" icon={<Eye size={16} />} onClick={() => setShowPreview(true)}>
+        {/* Grid (em vez de flex-wrap) para os 4 botões ficarem sempre
+            alinhados e do mesmo tamanho, independente da resolução — com
+            flex-wrap eles quebravam de forma desigual em larguras
+            intermediárias. */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Button
+            variant="secondary"
+            className="w-full"
+            icon={<Eye size={16} />}
+            onClick={() => setShowPreview(true)}
+          >
             Visualizar
           </Button>
           <Button
             variant="secondary"
+            className="w-full"
             icon={gerandoPdf ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
             onClick={handleGerarPdf}
             disabled={gerandoPdf}
@@ -344,13 +371,18 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
           </Button>
           <Button
             variant="secondary"
+            className="w-full"
             icon={enviando ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
             onClick={handleAbrirModalEnviar}
             disabled={enviando}
           >
             {enviando ? "Enviando…" : "Enviar orçamento"}
           </Button>
-          <Button icon={<Save size={16} />} onClick={handleSalvar}>
+          <Button
+            className="w-full"
+            icon={<Save size={16} />}
+            onClick={handleSalvar}
+          >
             Salvar orçamento
           </Button>
         </div>
