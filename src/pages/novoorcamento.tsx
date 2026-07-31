@@ -134,59 +134,66 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
     }
   };
 
+  // Dados de um cliente (achado por CNPJ ou por nome) a aplicar no formulário.
+  type DadosClienteEncontrado = {
+    clienteId?: string | null;
+    cnpj?: string;
+    empresa?: string;
+    cep?: string;
+    endereco?: string;
+    enderecoNumero?: string;
+    complemento?: string;
+    bairro?: string;
+    cidade?: string;
+    estado?: string;
+    pais?: string;
+    solicitante?: string;
+    setor?: string;
+    telefone?: string;
+    email?: string;
+  };
+
+  // Aplica os dados encontrados (por CNPJ ou por nome da empresa) no
+  // formulário. A busca é sempre uma ação deliberada do usuário (saiu do
+  // campo ou clicou numa sugestão), então sobrescreve os campos que a busca
+  // trouxer — preenchendo o máximo possível — e só mantém o valor atual
+  // quando a busca não trouxe nada para aquele campo.
+  const aplicarDadosCliente = (d: DadosClienteEncontrado, mensagem: string) => {
+    setO((atual) => ({
+      ...atual,
+      clienteId: d.clienteId ?? atual.clienteId ?? null,
+      cnpj: d.cnpj ? maskCNPJ(d.cnpj) : atual.cnpj,
+      empresa: d.empresa || atual.empresa || "",
+      cep: d.cep || atual.cep || "",
+      endereco: d.endereco || atual.endereco || "",
+      enderecoNumero: d.enderecoNumero || atual.enderecoNumero || "",
+      complemento: d.complemento || atual.complemento || "",
+      bairro: d.bairro || atual.bairro || "",
+      cidade: d.cidade || atual.cidade || "",
+      estado: d.estado || atual.estado || "",
+      pais: d.pais || atual.pais || "Brasil",
+      solicitante: d.solicitante || atual.solicitante || "",
+      setor: d.setor || atual.setor || "",
+      telefone: d.telefone || atual.telefone || "",
+      email: d.email || atual.email || "",
+    }));
+    mostrarToast(mensagem, "sucesso");
+  };
+
   // Autocompleta os dados da empresa/solicitante a partir do CNPJ digitado
   // (Enter ou ao sair do campo), caso já exista cadastro/orçamento anterior
   // para o mesmo CNPJ. Os campos preenchidos continuam editáveis.
-  // Não sobrescreve quando estamos editando um orçamento já carregado.
   const buscarClientePorCnpj = async (cnpjDigitado: string) => {
     // Só dispara com CNPJ completo (14 dígitos).
     const digitos = (cnpjDigitado || "").replace(/\D/g, "");
     if (digitos.length !== 14) return;
-
-    // Aplica os dados encontrados sem apagar o que já estiver preenchido
-    // pelo usuário (mantém valores atuais quando o cadastro vier vazio).
-    const aplicar = (d: {
-      clienteId?: string | null;
-      empresa?: string;
-      cep?: string;
-      endereco?: string;
-      enderecoNumero?: string;
-      complemento?: string;
-      bairro?: string;
-      cidade?: string;
-      estado?: string;
-      pais?: string;
-      solicitante?: string;
-      setor?: string;
-      telefone?: string;
-      email?: string;
-    }) => {
-      setO((atual) => ({
-        ...atual,
-        clienteId: atual.clienteId || d.clienteId || null,
-        empresa: atual.empresa || d.empresa || "",
-        cep: atual.cep || d.cep || "",
-        endereco: atual.endereco || d.endereco || "",
-        enderecoNumero: atual.enderecoNumero || d.enderecoNumero || "",
-        complemento: atual.complemento || d.complemento || "",
-        bairro: atual.bairro || d.bairro || "",
-        cidade: atual.cidade || d.cidade || "",
-        estado: atual.estado || d.estado || "",
-        pais: atual.pais || d.pais || "Brasil",
-        solicitante: atual.solicitante || d.solicitante || "",
-        setor: atual.setor || d.setor || "",
-        telefone: atual.telefone || d.telefone || "",
-        email: atual.email || d.email || "",
-      }));
-      mostrarToast("Dados da empresa preenchidos pelo CNPJ", "sucesso");
-    };
 
     if (API_ENABLED) {
       setBuscandoCnpj(true);
       try {
         const cliente = await api.buscarClientePorCnpj(cnpjDigitado);
         if (cliente && cliente.encontrado) {
-          aplicar(cliente);
+          aplicarDadosCliente(cliente, "Dados da empresa preenchidos pelo CNPJ");
         } else {
           mostrarToast(
             "CNPJ não encontrado na base pública. Preencha os dados manualmente.",
@@ -209,7 +216,87 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
     const mesmoCnpj = orcamentos
       .filter((orc) => orc.cnpj.replace(/\D/g, "") === digitos)
       .sort((a, b) => b.numero.localeCompare(a.numero));
-    if (mesmoCnpj.length > 0) aplicar(mesmoCnpj[0]);
+    if (mesmoCnpj.length > 0) {
+      aplicarDadosCliente(mesmoCnpj[0], "Dados da empresa preenchidos pelo CNPJ");
+    }
+  };
+
+  // ===== Autocompletar "Empresa / Cliente" pelo nome (cadastro local) =====
+  type SugestaoCliente = {
+    id: string;
+    cnpj: string | null;
+    nome: string;
+    cep: string | null;
+    endereco: string | null;
+    numero: string | null;
+    complemento: string | null;
+    bairro: string | null;
+    cidade: string | null;
+    estado: string | null;
+    pais: string;
+  };
+  const [sugestoesEmpresa, setSugestoesEmpresa] = useState<SugestaoCliente[]>([]);
+  const [mostrarSugestoesEmpresa, setMostrarSugestoesEmpresa] = useState(false);
+  const debounceEmpresaRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const buscarClientesPorNome = (nomeDigitado: string) => {
+    if (debounceEmpresaRef.current) clearTimeout(debounceEmpresaRef.current);
+    const termo = nomeDigitado.trim();
+    if (!API_ENABLED || termo.length < 3) {
+      setSugestoesEmpresa([]);
+      setMostrarSugestoesEmpresa(false);
+      return;
+    }
+    debounceEmpresaRef.current = setTimeout(async () => {
+      try {
+        const r = await api.listarClientes(termo);
+        setSugestoesEmpresa(r.data || []);
+        setMostrarSugestoesEmpresa((r.data || []).length > 0);
+      } catch {
+        // Busca de conveniência: falha silenciosa, o usuário segue digitando.
+      }
+    }, 350);
+  };
+
+  const selecionarClienteExistente = async (c: SugestaoCliente) => {
+    setMostrarSugestoesEmpresa(false);
+    setSugestoesEmpresa([]);
+    let solicitante = "";
+    let setor = "";
+    let telefone = "";
+    let email = "";
+    try {
+      const contatos = await api.listarContatosCliente(c.id);
+      const maisRecente = (contatos || [])[0];
+      if (maisRecente) {
+        solicitante = maisRecente.nome || "";
+        setor = maisRecente.setor || "";
+        telefone = maisRecente.telefone || "";
+        email = maisRecente.email || "";
+      }
+    } catch {
+      // Sem contato cadastrado ainda — segue só com os dados da empresa.
+    }
+    aplicarDadosCliente(
+      {
+        clienteId: c.id,
+        cnpj: c.cnpj || undefined,
+        empresa: c.nome,
+        cep: c.cep || undefined,
+        endereco: c.endereco || undefined,
+        enderecoNumero: c.numero || undefined,
+        complemento: c.complemento || undefined,
+        bairro: c.bairro || undefined,
+        cidade: c.cidade || undefined,
+        estado: c.estado || undefined,
+        pais: c.pais || undefined,
+        solicitante,
+        setor,
+        telefone,
+        email,
+      },
+      "Dados preenchidos a partir do cadastro existente",
+    );
   };
 
   const [showPreview, setShowPreview] = useState(false);
@@ -453,12 +540,45 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
                   </div>
                 )}
               </div>
-              <Input
-                label="Empresa / Cliente"
-                value={o.empresa}
-                onChange={(e) => setO({ ...o, empresa: e.target.value })}
-                required
-              />
+              <div className="relative">
+                <Input
+                  label="Empresa / Cliente"
+                  value={o.empresa}
+                  onChange={(e) => {
+                    const valor = e.target.value;
+                    setO({ ...o, empresa: valor });
+                    buscarClientesPorNome(valor);
+                  }}
+                  onFocus={() => {
+                    if (sugestoesEmpresa.length > 0) setMostrarSugestoesEmpresa(true);
+                  }}
+                  onBlur={() => setMostrarSugestoesEmpresa(false)}
+                  autoComplete="off"
+                  required
+                />
+                {mostrarSugestoesEmpresa && sugestoesEmpresa.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface shadow-lg">
+                    {sugestoesEmpresa.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          selecionarClienteExistente(c);
+                        }}
+                        className="block w-full px-3 py-2 text-left text-[13px] hover:bg-surface-offset"
+                      >
+                        <div className="font-medium text-text">{c.nome}</div>
+                        <div className="text-[11px] text-text-muted">
+                          {[c.cnpj, [c.cidade, c.estado].filter(Boolean).join("/")]
+                            .filter(Boolean)
+                            .join(" — ")}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </Block>
 
