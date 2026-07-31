@@ -168,6 +168,25 @@ export const api = {
       email: string;
     } | null>(`/clientes/por-cnpj?cnpj=${encodeURIComponent(cnpj.trim())}`),
 
+  // Busca clientes já cadastrados por nome/CNPJ/cidade (autocompletar o
+  // campo "Empresa / Cliente" digitando o nome, sem precisar do CNPJ).
+  listarClientes: (busca: string) =>
+    req<{
+      data: {
+        id: string;
+        cnpj: string | null;
+        nome: string;
+        cep: string | null;
+        endereco: string | null;
+        numero: string | null;
+        complemento: string | null;
+        bairro: string | null;
+        cidade: string | null;
+        estado: string | null;
+        pais: string;
+      }[];
+    }>(`/clientes?busca=${encodeURIComponent(busca.trim())}&pageSize=6`),
+
   // ===== Solicitantes (contatos) de um cliente =====
   // Usado no dropdown de solicitante e no modal de envio.
   listarContatosCliente: (clienteId: string) =>

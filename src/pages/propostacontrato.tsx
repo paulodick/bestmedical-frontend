@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Save,
   Eye,
@@ -160,6 +160,49 @@ export function PropostaContrato({ propostaParaEditar }: PropostaContratoProps =
     }
   };
 
+  // Dados de um cliente (achado por CNPJ ou por nome) a aplicar no formulário.
+  type DadosClienteEncontrado = {
+    clienteId?: string | null;
+    cnpj?: string;
+    empresa?: string;
+    cep?: string;
+    endereco?: string;
+    enderecoNumero?: string;
+    complemento?: string;
+    bairro?: string;
+    cidade?: string;
+    estado?: string;
+    pais?: string;
+    solicitante?: string;
+    setor?: string;
+    telefone?: string;
+    email?: string;
+  };
+
+  // Mesma lógica do orçamento: a busca (por CNPJ ou por nome) é uma ação
+  // deliberada do usuário, então sobrescreve os campos que a busca trouxer.
+  const aplicarDadosCliente = (d: DadosClienteEncontrado, mensagem: string) => {
+    setP((atual) => ({
+      ...atual,
+      clienteId: d.clienteId ?? atual.clienteId ?? null,
+      cnpj: d.cnpj ? maskCNPJ(d.cnpj) : atual.cnpj,
+      empresa: d.empresa || atual.empresa || "",
+      cep: d.cep || atual.cep || "",
+      endereco: d.endereco || atual.endereco || "",
+      enderecoNumero: d.enderecoNumero || atual.enderecoNumero || "",
+      complemento: d.complemento || atual.complemento || "",
+      bairro: d.bairro || atual.bairro || "",
+      cidade: d.cidade || atual.cidade || "",
+      estado: d.estado || atual.estado || "",
+      pais: d.pais || atual.pais || "Brasil",
+      solicitante: d.solicitante || atual.solicitante || "",
+      setor: d.setor || atual.setor || "",
+      telefone: d.telefone || atual.telefone || "",
+      email: d.email || atual.email || "",
+    }));
+    mostrarToast(mensagem);
+  };
+
   // Autocompleta dados da empresa/solicitante pelo CNPJ (igual ao orçamento).
   const buscarClientePorCnpj = async (cnpjDigitado: string) => {
     const digitos = (cnpjDigitado || "").replace(/\D/g, "");
@@ -168,24 +211,7 @@ export function PropostaContrato({ propostaParaEditar }: PropostaContratoProps =
     try {
       const c = await api.buscarClientePorCnpj(cnpjDigitado);
       if (c && c.encontrado) {
-        setP((atual) => ({
-          ...atual,
-          clienteId: atual.clienteId || c.clienteId || null,
-          empresa: atual.empresa || c.empresa || "",
-          cep: atual.cep || c.cep || "",
-          endereco: atual.endereco || c.endereco || "",
-          enderecoNumero: atual.enderecoNumero || c.enderecoNumero || "",
-          complemento: atual.complemento || c.complemento || "",
-          bairro: atual.bairro || c.bairro || "",
-          cidade: atual.cidade || c.cidade || "",
-          estado: atual.estado || c.estado || "",
-          pais: atual.pais || c.pais || "Brasil",
-          solicitante: atual.solicitante || c.solicitante || "",
-          setor: atual.setor || c.setor || "",
-          telefone: atual.telefone || c.telefone || "",
-          email: atual.email || c.email || "",
-        }));
-        mostrarToast("Dados da empresa preenchidos pelo CNPJ");
+        aplicarDadosCliente(c, "Dados da empresa preenchidos pelo CNPJ");
       } else {
         mostrarToast(
           "CNPJ não encontrado na base pública. Preencha os dados manualmente.",
@@ -200,6 +226,84 @@ export function PropostaContrato({ propostaParaEditar }: PropostaContratoProps =
     } finally {
       setBuscandoCnpj(false);
     }
+  };
+
+  // ===== Autocompletar "Empresa / Cliente" pelo nome (cadastro local) =====
+  type SugestaoCliente = {
+    id: string;
+    cnpj: string | null;
+    nome: string;
+    cep: string | null;
+    endereco: string | null;
+    numero: string | null;
+    complemento: string | null;
+    bairro: string | null;
+    cidade: string | null;
+    estado: string | null;
+    pais: string;
+  };
+  const [sugestoesEmpresa, setSugestoesEmpresa] = useState<SugestaoCliente[]>([]);
+  const [mostrarSugestoesEmpresa, setMostrarSugestoesEmpresa] = useState(false);
+  const debounceEmpresaRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const buscarClientesPorNome = (nomeDigitado: string) => {
+    if (debounceEmpresaRef.current) clearTimeout(debounceEmpresaRef.current);
+    const termo = nomeDigitado.trim();
+    if (!API_ENABLED || termo.length < 3) {
+      setSugestoesEmpresa([]);
+      setMostrarSugestoesEmpresa(false);
+      return;
+    }
+    debounceEmpresaRef.current = setTimeout(async () => {
+      try {
+        const r = await api.listarClientes(termo);
+        setSugestoesEmpresa(r.data || []);
+        setMostrarSugestoesEmpresa((r.data || []).length > 0);
+      } catch {
+        // Busca de conveniência: falha silenciosa, o usuário segue digitando.
+      }
+    }, 350);
+  };
+
+  const selecionarClienteExistente = async (c: SugestaoCliente) => {
+    setMostrarSugestoesEmpresa(false);
+    setSugestoesEmpresa([]);
+    let solicitante = "";
+    let setor = "";
+    let telefone = "";
+    let email = "";
+    try {
+      const contatos = await api.listarContatosCliente(c.id);
+      const maisRecente = (contatos || [])[0];
+      if (maisRecente) {
+        solicitante = maisRecente.nome || "";
+        setor = maisRecente.setor || "";
+        telefone = maisRecente.telefone || "";
+        email = maisRecente.email || "";
+      }
+    } catch {
+      // Sem contato cadastrado ainda — segue só com os dados da empresa.
+    }
+    aplicarDadosCliente(
+      {
+        clienteId: c.id,
+        cnpj: c.cnpj || undefined,
+        empresa: c.nome,
+        cep: c.cep || undefined,
+        endereco: c.endereco || undefined,
+        enderecoNumero: c.numero || undefined,
+        complemento: c.complemento || undefined,
+        bairro: c.bairro || undefined,
+        cidade: c.cidade || undefined,
+        estado: c.estado || undefined,
+        pais: c.pais || undefined,
+        solicitante,
+        setor,
+        telefone,
+        email,
+      },
+      "Dados preenchidos a partir do cadastro existente",
+    );
   };
 
   // Mesma correção aplicada em novoorcamento.tsx: preserva o valor já
@@ -498,12 +602,45 @@ export function PropostaContrato({ propostaParaEditar }: PropostaContratoProps =
                   </div>
                 )}
               </div>
-              <Input
-                label="Empresa / Cliente"
-                value={p.empresa}
-                onChange={(e) => setP({ ...p, empresa: e.target.value })}
-                required
-              />
+              <div className="relative">
+                <Input
+                  label="Empresa / Cliente"
+                  value={p.empresa}
+                  onChange={(e) => {
+                    const valor = e.target.value;
+                    setP({ ...p, empresa: valor });
+                    buscarClientesPorNome(valor);
+                  }}
+                  onFocus={() => {
+                    if (sugestoesEmpresa.length > 0) setMostrarSugestoesEmpresa(true);
+                  }}
+                  onBlur={() => setMostrarSugestoesEmpresa(false)}
+                  autoComplete="off"
+                  required
+                />
+                {mostrarSugestoesEmpresa && sugestoesEmpresa.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface shadow-lg">
+                    {sugestoesEmpresa.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          selecionarClienteExistente(c);
+                        }}
+                        className="block w-full px-3 py-2 text-left text-[13px] hover:bg-surface-offset"
+                      >
+                        <div className="font-medium text-text">{c.nome}</div>
+                        <div className="text-[11px] text-text-muted">
+                          {[c.cnpj, [c.cidade, c.estado].filter(Boolean).join("/")]
+                            .filter(Boolean)
+                            .join(" — ")}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </Block>
 
