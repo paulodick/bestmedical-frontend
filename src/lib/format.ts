@@ -45,6 +45,65 @@ export const isoParaBR = (iso: string): string => {
   return `${d}/${m}/${y}`;
 };
 
+// Interpreta um único campo de "data de pagamento" que aceita tanto uma
+// data (em vários formatos comuns) quanto texto livre (ex.: "Antecipado",
+// "30 dias", "Ato"). Se o texto for reconhecível como data válida, retorna
+// dataPagamento (ISO) com condicaoPagamento null; caso contrário, retorna
+// o texto original como condicaoPagamento com dataPagamento null.
+export const parseCondicaoPagamento = (
+  textoBruto: string,
+): { dataPagamento: string | null; condicaoPagamento: string | null } => {
+  const texto = (textoBruto || "").trim();
+  if (!texto) return { dataPagamento: null, condicaoPagamento: null };
+
+  const validar = (d: number, mo: number, y: number): string | null => {
+    const dt = new Date(y, mo - 1, d);
+    if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d)
+      return null;
+    return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  };
+
+  // yyyy-mm-dd (ISO)
+  let m = texto.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) {
+    const iso = validar(Number(m[3]), Number(m[2]), Number(m[1]));
+    if (iso) return { dataPagamento: iso, condicaoPagamento: null };
+  }
+
+  // dd/mm/aaaa ou dd-mm-aaaa
+  m = texto.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (m) {
+    const iso = validar(Number(m[1]), Number(m[2]), Number(m[3]));
+    if (iso) return { dataPagamento: iso, condicaoPagamento: null };
+  }
+
+  // dd/mm/aa (assume 20aa)
+  m = texto.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2})$/);
+  if (m) {
+    const iso = validar(Number(m[1]), Number(m[2]), 2000 + Number(m[3]));
+    if (iso) return { dataPagamento: iso, condicaoPagamento: null };
+  }
+
+  // dd/mm (assume ano corrente)
+  m = texto.match(/^(\d{1,2})[\/\-.](\d{1,2})$/);
+  if (m) {
+    const anoAtual = new Date().getFullYear();
+    const iso = validar(Number(m[1]), Number(m[2]), anoAtual);
+    if (iso) return { dataPagamento: iso, condicaoPagamento: null };
+  }
+
+  return { dataPagamento: null, condicaoPagamento: texto };
+};
+
+// Texto a exibir/editar no campo único de data de pagamento.
+export const formatCondicaoPagamentoInput = (
+  dataPagamento?: string | null,
+  condicaoPagamento?: string | null,
+): string => {
+  if (dataPagamento) return formatDataBR(dataPagamento);
+  return condicaoPagamento || "";
+};
+
 export const hojeISO = (): string => {
   const d = new Date();
   const off = d.getTimezoneOffset();

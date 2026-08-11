@@ -29,6 +29,8 @@ import {
   maskCNPJ,
   formatBRL,
   uid,
+  parseCondicaoPagamento,
+  formatCondicaoPagamentoInput,
 } from "../lib/format";
 import { consultarCEP, ESTADOS_BR, proximoNumero } from "../lib/mock";
 import {
@@ -97,10 +99,22 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
 
   const [o, setO] = useState<Orcamento>(() => orcamentoParaEditar || novoOrcamentoVazio(proximoNumero(orcamentos)));
 
+  // Campo único (texto livre com parsing automático de data) para a Data de
+  // Pagamento — ver parseCondicaoPagamento em lib/format.ts.
+  const [condPagTexto, setCondPagTexto] = useState(() =>
+    formatCondicaoPagamentoInput(o.dataPagamento, o.condicaoPagamento),
+  );
+
   // Atualiza o formulário se o utilizador clicou no número lá na tela de Controle
   useEffect(() => {
     if (orcamentoParaEditar) {
       setO(orcamentoParaEditar);
+      setCondPagTexto(
+        formatCondicaoPagamentoInput(
+          orcamentoParaEditar.dataPagamento,
+          orcamentoParaEditar.condicaoPagamento,
+        ),
+      );
     }
   }, [orcamentoParaEditar]);
 
@@ -809,43 +823,23 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
           <Block title="Data de Pagamento">
             <div className="space-y-2">
               <p className="text-xs text-text-muted">
-                Informe uma data prevista ou, se ainda não houver data, uma
-                condição em texto livre (ex.: "Antecipado", "30 dias").
+                Digite uma data (ex.: 10/09/2026) ou uma condição em texto
+                livre (ex.: "Antecipado", "30 dias", "Ato").
               </p>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="date"
-                  value={o.dataPagamento || ""}
-                  disabled={!!o.condicaoPagamento}
-                  onChange={(e) =>
-                    setO((prev) => ({
-                      ...prev,
-                      dataPagamento: e.target.value || null,
-                      condicaoPagamento: e.target.value
-                        ? null
-                        : prev.condicaoPagamento,
-                    }))
-                  }
-                  className="disabled:cursor-not-allowed disabled:opacity-50"
-                />
-                <span className="text-[11px] text-slate-400">ou</span>
-                <Input
-                  type="text"
-                  value={o.condicaoPagamento || ""}
-                  disabled={!!o.dataPagamento}
-                  onChange={(e) =>
-                    setO((prev) => ({
-                      ...prev,
-                      condicaoPagamento: e.target.value || null,
-                      dataPagamento: e.target.value
-                        ? null
-                        : prev.dataPagamento,
-                    }))
-                  }
-                  placeholder="Antecipado, 30 dias..."
-                  className="disabled:cursor-not-allowed disabled:opacity-50"
-                />
-              </div>
+              <Input
+                type="text"
+                value={condPagTexto}
+                onChange={(e) => setCondPagTexto(e.target.value)}
+                onBlur={() => {
+                  const { dataPagamento, condicaoPagamento } =
+                    parseCondicaoPagamento(condPagTexto);
+                  setO((prev) => ({ ...prev, dataPagamento, condicaoPagamento }));
+                  setCondPagTexto(
+                    formatCondicaoPagamentoInput(dataPagamento, condicaoPagamento),
+                  );
+                }}
+                placeholder="10/09/2026, Antecipado, 30 dias..."
+              />
             </div>
           </Block>
         </div>

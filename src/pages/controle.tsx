@@ -34,6 +34,8 @@ import {
   isoParaBR,
   brParaISO,
   maskDataBR,
+  parseCondicaoPagamento,
+  formatCondicaoPagamentoInput,
 } from "../lib/format";
 import { totalFinal } from "../lib/calc";
 import { api, API_ENABLED } from "../lib/api";
@@ -453,23 +455,30 @@ export function Controle({
     }
   };
 
-  // Abre o modal para anotar a condição de pagamento (texto livre).
+  // Abre o modal para definir a data de pagamento (data ou texto livre).
   const abrirCondicaoPagamento = (r: Registro) => {
-    const atual = (r.orcamento as unknown as { condicaoPagamento?: string | null })
-      ?.condicaoPagamento;
-    setCondPagTexto(atual || "");
+    const o = r.orcamento as unknown as {
+      dataPagamento?: string | null;
+      condicaoPagamento?: string | null;
+    };
+    setCondPagTexto(
+      formatCondicaoPagamentoInput(o?.dataPagamento, o?.condicaoPagamento),
+    );
     setCondPagReg(r);
   };
 
-  // Salva a condição de pagamento. Enviar dataPagamento: null junto garante
-  // que os dois campos nunca fiquem preenchidos ao mesmo tempo (mesma regra
-  // já aplicada no backend).
+  // Salva a data de pagamento. O texto é interpretado como data (se
+  // reconhecível) ou como condição em texto livre — nunca os dois ao mesmo
+  // tempo (mesma regra já aplicada no backend).
   const salvarCondicaoPagamento = () => {
     if (!condPagReg) return;
+    const { dataPagamento, condicaoPagamento } =
+      parseCondicaoPagamento(condPagTexto);
     setCondPagSalvando(true);
     try {
       atualizar(condPagReg.id, {
-        condicaoPagamento: condPagTexto.trim() || null,
+        dataPagamento,
+        condicaoPagamento,
       } as Partial<Orcamento>);
       setCondPagReg(null);
     } finally {
@@ -1040,24 +1049,30 @@ export function Controle({
                             interactive
                           />
                         )}
-                        {/* Selo "Condição de pagamento": nota em texto livre
-                            (ex.: "Antecipado", "30 dias"), usada quando ainda
-                            não há uma data definida para o recebimento. Some
-                            sozinha ao confirmar "Recebido" (o backend zera
-                            esse campo quando a data real é gravada). */}
+                        {/* Selo "Data de pagamento": data prevista (ou
+                            texto livre, ex.: "Antecipado", "30 dias"),
+                            enquanto ainda não foi marcado como "Recebido". */}
                         {r.tipoRegistro === "orcamento" &&
-                          !(r.orcamento as unknown as { dataPagamento?: string | null })
-                            ?.dataPagamento && (
+                          !statusOn(r, "pago") && (
                             <StatusPill
                               on={
+                                !!(r.orcamento as unknown as {
+                                  dataPagamento?: string | null;
+                                  condicaoPagamento?: string | null;
+                                })?.dataPagamento ||
                                 !!(r.orcamento as unknown as {
                                   condicaoPagamento?: string | null;
                                 })?.condicaoPagamento
                               }
                               label={
-                                (r.orcamento as unknown as {
-                                  condicaoPagamento?: string | null;
-                                })?.condicaoPagamento || "Condição pgto."
+                                formatCondicaoPagamentoInput(
+                                  (r.orcamento as unknown as {
+                                    dataPagamento?: string | null;
+                                  })?.dataPagamento,
+                                  (r.orcamento as unknown as {
+                                    condicaoPagamento?: string | null;
+                                  })?.condicaoPagamento,
+                                ) || "Data pgto."
                               }
                               tom="warning"
                               onClick={() => abrirCondicaoPagamento(r)}
@@ -1265,13 +1280,13 @@ export function Controle({
         </div>
       </Modal>
 
-      {/* Modal "Condição de pagamento": nota em texto livre, alternativa à
-          data quando ainda não há uma definida (ex.: "Antecipado", "30 dias").
-          Independente do fluxo "Recebido" — não mexe no Fluxo de Caixa. */}
+      {/* Modal "Data de pagamento": data prevista OU condição em texto
+          livre, no mesmo campo (ver parseCondicaoPagamento). Independente
+          do fluxo "Recebido" — não mexe no Fluxo de Caixa. */}
       <Modal
         open={!!condPagReg}
         onClose={() => setCondPagReg(null)}
-        title={`Condição de pagamento — ${condPagReg?.numero ?? ""}`}
+        title={`Data de pagamento — ${condPagReg?.numero ?? ""}`}
         footer={
           <>
             <Button variant="ghost" onClick={() => setCondPagReg(null)}>
@@ -1285,15 +1300,14 @@ export function Controle({
       >
         <div className="space-y-3">
           <p className="text-sm text-text-muted">
-            Anote a condição combinada enquanto não há uma data exata de
-            recebimento (ex.: "Antecipado", "30 dias"). Deixe em branco para
-            limpar.
+            Digite uma data (ex.: 10/09/2026) ou uma condição em texto livre
+            (ex.: "Antecipado", "30 dias"). Deixe em branco para limpar.
           </p>
           <Input
-            label="Condição de pagamento"
+            label="Data de pagamento"
             value={condPagTexto}
             onChange={(e) => setCondPagTexto(e.target.value)}
-            placeholder="Antecipado, 30 dias..."
+            placeholder="10/09/2026, Antecipado, 30 dias..."
           />
         </div>
       </Modal>
