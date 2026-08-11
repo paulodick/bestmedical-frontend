@@ -83,6 +83,9 @@ export interface Parcela {
   id: string;
   numero: number;       // sequencial, não editável (1, 2, 3...)
   data: string;         // ISO yyyy-mm-dd — editável
+  // condição de vencimento em texto livre (ex.: "Antecipado", "30 dias") —
+  // alternativa à data no mesmo campo da UI (Data Pagamento).
+  condicaoVencimento?: string | null;
   valor: number;        // valor da parcela em reais — editável (parcela 1)
 }
 
