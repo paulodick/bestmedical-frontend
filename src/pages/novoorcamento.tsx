@@ -79,6 +79,8 @@ function novoOrcamentoVazio(numero: string): Orcamento {
     itens: [],
     parcelas: [],
     textoFinal: TEXTO_FINAL_PADRAO,
+    dataPagamento: null,
+    condicaoPagamento: null,
     // Controle / status
     enviado: false,
     aprovado: false,
@@ -802,6 +804,49 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
                 setO((prev) => ({ ...prev, parcelas: novasParcelas }))
               }
             />
+          </Block>
+
+          <Block title="Data de Pagamento">
+            <div className="space-y-2">
+              <p className="text-xs text-text-muted">
+                Informe uma data prevista ou, se ainda não houver data, uma
+                condição em texto livre (ex.: "Antecipado", "30 dias").
+              </p>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="date"
+                  value={o.dataPagamento || ""}
+                  disabled={!!o.condicaoPagamento}
+                  onChange={(e) =>
+                    setO((prev) => ({
+                      ...prev,
+                      dataPagamento: e.target.value || null,
+                      condicaoPagamento: e.target.value
+                        ? null
+                        : prev.condicaoPagamento,
+                    }))
+                  }
+                  className="disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                <span className="text-[11px] text-slate-400">ou</span>
+                <Input
+                  type="text"
+                  value={o.condicaoPagamento || ""}
+                  disabled={!!o.dataPagamento}
+                  onChange={(e) =>
+                    setO((prev) => ({
+                      ...prev,
+                      condicaoPagamento: e.target.value || null,
+                      dataPagamento: e.target.value
+                        ? null
+                        : prev.dataPagamento,
+                    }))
+                  }
+                  placeholder="Antecipado, 30 dias..."
+                  className="disabled:cursor-not-allowed disabled:opacity-50"
+                />
+              </div>
+            </div>
           </Block>
         </div>
       </div>
