@@ -71,8 +71,10 @@ export const gerarParcelas = (
   for (let i = 0; i < n; i++) {
     const prev = anteriores[i];
     let data = prev?.data || "";
-    // Datas subsequentes: se vazias, +30 dias a partir da anterior gerada
-    if (i > 0 && !data && out[i - 1]?.data) {
+    const condicaoVencimento = prev?.condicaoVencimento || null;
+    // Datas subsequentes: se vazias (e sem condição em texto livre), +30
+    // dias a partir da anterior gerada.
+    if (i > 0 && !data && !condicaoVencimento && out[i - 1]?.data) {
       data = addDias(out[i - 1].data, 30);
     }
     if (i === 0) data = primeiraData;
@@ -80,6 +82,7 @@ export const gerarParcelas = (
       id: prev?.id || uid(),
       numero: i + 1,
       data,
+      condicaoVencimento,
       valor: valores[i],
     });
   }

@@ -29,8 +29,6 @@ import {
   maskCNPJ,
   formatBRL,
   uid,
-  parseCondicaoPagamento,
-  formatCondicaoPagamentoInput,
 } from "../lib/format";
 import { consultarCEP, ESTADOS_BR, proximoNumero } from "../lib/mock";
 import {
@@ -99,22 +97,10 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
 
   const [o, setO] = useState<Orcamento>(() => orcamentoParaEditar || novoOrcamentoVazio(proximoNumero(orcamentos)));
 
-  // Campo único (texto livre com parsing automático de data) para a Data de
-  // Pagamento — ver parseCondicaoPagamento em lib/format.ts.
-  const [condPagTexto, setCondPagTexto] = useState(() =>
-    formatCondicaoPagamentoInput(o.dataPagamento, o.condicaoPagamento),
-  );
-
   // Atualiza o formulário se o utilizador clicou no número lá na tela de Controle
   useEffect(() => {
     if (orcamentoParaEditar) {
       setO(orcamentoParaEditar);
-      setCondPagTexto(
-        formatCondicaoPagamentoInput(
-          orcamentoParaEditar.dataPagamento,
-          orcamentoParaEditar.condicaoPagamento,
-        ),
-      );
     }
   }, [orcamentoParaEditar]);
 
@@ -818,29 +804,6 @@ export function NovoOrcamento({ orcamentoParaEditar }: NovoOrcamentoProps = {}) 
                 setO((prev) => ({ ...prev, parcelas: novasParcelas }))
               }
             />
-          </Block>
-
-          <Block title="Data de Pagamento">
-            <div className="space-y-2">
-              <p className="text-xs text-text-muted">
-                Digite uma data (ex.: 10/09/2026) ou uma condição em texto
-                livre (ex.: "Antecipado", "30 dias", "Ato").
-              </p>
-              <Input
-                type="text"
-                value={condPagTexto}
-                onChange={(e) => setCondPagTexto(e.target.value)}
-                onBlur={() => {
-                  const { dataPagamento, condicaoPagamento } =
-                    parseCondicaoPagamento(condPagTexto);
-                  setO((prev) => ({ ...prev, dataPagamento, condicaoPagamento }));
-                  setCondPagTexto(
-                    formatCondicaoPagamentoInput(dataPagamento, condicaoPagamento),
-                  );
-                }}
-                placeholder="10/09/2026, Antecipado, 30 dias..."
-              />
-            </div>
           </Block>
         </div>
       </div>

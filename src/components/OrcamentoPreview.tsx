@@ -1,5 +1,5 @@
 import type { Orcamento } from "../types";
-import { formatBRL, formatDataBR, subtotalItem } from "../lib/format";
+import { formatBRL, formatDataBR, formatCondicaoPagamentoInput, subtotalItem } from "../lib/format";
 import { totalFinal, totalBruto, valorDesconto } from "../lib/calc";
 import logoSymbol from "../assets/logo-symbol.png";
 
@@ -222,7 +222,7 @@ export function OrcamentoPreview({ o }: { o: Orcamento }) {
                 <tr key={p.id} className="border-b border-slate-100">
                   <td className="py-1.5 text-slate-700">{p.numero}</td>
                   <td className="py-1.5 text-slate-700">
-                    {p.data ? formatDataBR(p.data) : "—"}
+                    {formatCondicaoPagamentoInput(p.data, p.condicaoVencimento) || "—"}
                   </td>
                   <td className="py-1.5 text-right tabular-nums text-slate-800">
                     {formatBRL(p.valor)}

@@ -4,9 +4,8 @@ import {
   formatBRL,
   moedaParaInput,
   parseMoedaInput,
-  maskDataBR,
-  brParaISO,
-  isoParaBR,
+  parseCondicaoPagamento,
+  formatCondicaoPagamentoInput,
 } from "../lib/format";
 import {
   addDias,
@@ -59,15 +58,21 @@ export function Parcelamento({
     onChangeParcelas(gerarParcelas(n, total, parcelas));
   };
 
-  // Edita a data de uma parcela. As datas subsequentes são recalculadas
-  // (+30 dias acumulado) a partir da editada; todas permanecem editáveis.
-  const setData = (idx: number, brValue: string) => {
-    const iso = brParaISO(maskDataBR(brValue));
+  // Edita a data (ou condição em texto livre) de uma parcela. Quando o
+  // texto digitado é reconhecível como data, as datas subsequentes são
+  // recalculadas (+30 dias acumulado) a partir dela; caso contrário, fica
+  // como texto livre e nada é recalculado.
+  const setData = (idx: number, textoBruto: string) => {
+    const { dataPagamento, condicaoPagamento } =
+      parseCondicaoPagamento(textoBruto);
     const novas: Parcela[] = parcelas.map((p, i) =>
-      i === idx ? { ...p, data: iso } : { ...p }
+      i === idx
+        ? { ...p, data: dataPagamento || "", condicaoVencimento: condicaoPagamento }
+        : { ...p }
     );
-    if (iso) {
+    if (dataPagamento) {
       for (let i = idx + 1; i < novas.length; i++) {
+        if (novas[i].condicaoVencimento) continue;
         novas[i] = { ...novas[i], data: addDias(novas[i - 1].data, 30) };
       }
     }
@@ -129,14 +134,13 @@ export function Parcelamento({
                   </td>
                   <td className="px-2 py-1.5">
                     <input
-                      defaultValue={isoParaBR(p.data)}
-                      key={p.data + p.id}
-                      onChange={(e) => {
-                        e.target.value = maskDataBR(e.target.value);
-                      }}
+                      defaultValue={formatCondicaoPagamentoInput(
+                        p.data,
+                        p.condicaoVencimento,
+                      )}
+                      key={p.data + (p.condicaoVencimento || "") + p.id}
                       onBlur={(e) => setData(i, e.target.value)}
-                      placeholder="dd/mm/aaaa"
-                      inputMode="numeric"
+                      placeholder="dd/mm/aaaa, Antecipado, 30 dias..."
                       className="w-full rounded border border-transparent bg-transparent px-2 py-1.5 text-text placeholder:text-text-faint hover:border-border focus:border-primary focus:bg-surface focus:outline-none"
                     />
                   </td>
