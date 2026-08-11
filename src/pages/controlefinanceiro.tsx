@@ -17,7 +17,13 @@ import { useAuth } from "../auth";
 import type { Orcamento, Proposta } from "../types";
 import { Modal } from "../components/Modal";
 import { Button, Input, Select, Textarea, StatusPill } from "../components/ui";
-import { formatBRL, formatDataBR, hojeISO } from "../lib/format";
+import {
+  formatBRL,
+  formatDataBR,
+  hojeISO,
+  parseCondicaoPagamento,
+  formatCondicaoPagamentoInput,
+} from "../lib/format";
 import { totalFinal } from "../lib/calc";
 import { api, API_ENABLED } from "../lib/api";
 
@@ -149,12 +155,10 @@ export function ControleFinanceiro({
   const [statusAberto, setStatusAberto] = useState(false);
   const statusRef = useRef<HTMLDivElement>(null);
 
-  // Edição inline da data de pagamento
+  // Edição inline da data de pagamento — campo único (texto livre com
+  // parsing automático de data, ver parseCondicaoPagamento em lib/format.ts).
   const [editId, setEditId] = useState<string | null>(null);
-  const [rascunhoData, setRascunhoData] = useState("");
-  // Condição de pagamento (texto livre) — alternativa à data, mutuamente
-  // exclusiva com ela na UI (preencher uma desabilita a outra).
-  const [rascunhoCondicao, setRascunhoCondicao] = useState("");
+  const [rascunhoCondPag, setRascunhoCondPag] = useState("");
 
   // Modal de Resumo de recebimentos
   const [resumoAberto, setResumoAberto] = useState(false);
@@ -270,10 +274,9 @@ export function ControleFinanceiro({
 
   // Salva a data de pagamento editada inline.
   const salvarDataPagamento = (r: Registro) => {
-    salvarStatus(r, {
-      dataPagamento: rascunhoData || null,
-      condicaoPagamento: rascunhoData ? null : rascunhoCondicao || null,
-    });
+    const { dataPagamento, condicaoPagamento } =
+      parseCondicaoPagamento(rascunhoCondPag);
+    salvarStatus(r, { dataPagamento, condicaoPagamento });
     setEditId(null);
   };
 
@@ -805,28 +808,18 @@ export function ControleFinanceiro({
                     <td className="px-3 py-2.5 font-medium text-slate-900">
                       {formatBRL(r.total)}
                     </td>
-                    {/* Data de pagamento (ou condição, em texto livre) —
-                        editável inline (paulodick). Os dois campos são
-                        mutuamente exclusivos: preencher um desabilita o
-                        outro, tanto na edição quanto ao salvar. */}
+                    {/* Data de pagamento — campo único que aceita data
+                        (dd/mm/aaaa etc.) ou texto livre (ex.: "Antecipado",
+                        "30 dias"). Ver parseCondicaoPagamento. */}
                     <td className="px-3 py-2.5">
                       {emEdicao ? (
                         <div className="flex items-center gap-1">
                           <Input
-                            type="date"
-                            value={rascunhoData}
-                            disabled={!!rascunhoCondicao}
-                            onChange={(e) => setRascunhoData(e.target.value)}
-                            className="min-w-[140px] disabled:cursor-not-allowed disabled:opacity-50"
-                          />
-                          <span className="text-[11px] text-slate-400">ou</span>
-                          <Input
                             type="text"
-                            value={rascunhoCondicao}
-                            disabled={!!rascunhoData}
-                            onChange={(e) => setRascunhoCondicao(e.target.value)}
-                            placeholder="Antecipado, 30 dias..."
-                            className="min-w-[140px] disabled:cursor-not-allowed disabled:opacity-50"
+                            value={rascunhoCondPag}
+                            onChange={(e) => setRascunhoCondPag(e.target.value)}
+                            placeholder="10/09/2026, Antecipado, 30 dias..."
+                            className="min-w-[160px]"
                           />
                           <button
                             onClick={() => salvarDataPagamento(r)}
@@ -849,8 +842,12 @@ export function ControleFinanceiro({
                           disabled={!podeEditar}
                           onClick={() => {
                             setEditId(r.id);
-                            setRascunhoData(r.dataPagamento || "");
-                            setRascunhoCondicao(r.condicaoPagamento || "");
+                            setRascunhoCondPag(
+                              formatCondicaoPagamentoInput(
+                                r.dataPagamento,
+                                r.condicaoPagamento,
+                              ),
+                            );
                           }}
                           title={
                             podeEditar
