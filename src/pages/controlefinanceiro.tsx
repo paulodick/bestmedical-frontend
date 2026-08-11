@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
   X,
@@ -768,13 +768,27 @@ export function ControleFinanceiro({
                       ? () => onEdit(r.orcamento as Orcamento)
                       : undefined;
 
+                // Parcelamento (só orçamentos): quando o orçamento foi
+                // dividido em 2+ parcelas na tela Novo Orçamento, mostra
+                // uma sub-linha por parcela logo abaixo, com o valor e a
+                // data/condição de cada uma.
+                const subParcelas =
+                  r.tipoRegistro === "orcamento" &&
+                  r.orcamento &&
+                  r.orcamento.numParcelas > 1 &&
+                  r.orcamento.parcelas.length > 1
+                    ? r.orcamento.parcelas
+                    : [];
+
                 return (
+                  <Fragment key={`${r.tipoRegistro}-${r.id}`}>
                   <tr
-                    key={`${r.tipoRegistro}-${r.id}`}
                     className={
                       cancelado
                         ? "border-b border-slate-200 bg-slate-100 !text-black last:border-0"
-                        : "border-b border-slate-100 last:border-0 hover:bg-slate-50/50"
+                        : subParcelas.length > 0
+                          ? "border-b-0 hover:bg-slate-50/50"
+                          : "border-b border-slate-100 last:border-0 hover:bg-slate-50/50"
                     }
                   >
                     <td className="px-3 py-2.5 font-medium text-slate-900">
@@ -933,6 +947,33 @@ export function ControleFinanceiro({
                       </div>
                     </td>
                   </tr>
+                  {subParcelas.map((p, i) => (
+                    <tr
+                      key={`${r.tipoRegistro}-${r.id}-parcela-${p.id}`}
+                      className={
+                        cancelado
+                          ? "border-b border-slate-200 bg-slate-100/70 !text-black last:border-0"
+                          : i === subParcelas.length - 1
+                            ? "border-b border-slate-100 bg-slate-50/40 last:border-0"
+                            : "border-b-0 bg-slate-50/40"
+                      }
+                    >
+                      <td className="px-3 py-1.5 pl-7 text-[12px] text-slate-400">
+                        ↳ {p.numero}/{subParcelas.length}
+                      </td>
+                      <td className="px-3 py-1.5" />
+                      <td className="px-3 py-1.5" />
+                      <td className="px-3 py-1.5 text-[13px] text-slate-600">
+                        {formatBRL(p.valor)}
+                      </td>
+                      <td className="px-3 py-1.5 text-[13px] text-slate-600">
+                        {formatCondicaoPagamentoInput(p.data, p.condicaoVencimento) || "—"}
+                      </td>
+                      <td className="px-3 py-1.5" />
+                      <td className="px-3 py-1.5" />
+                    </tr>
+                  ))}
+                  </Fragment>
                 );
               })
             )}
