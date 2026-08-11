@@ -28,6 +28,7 @@ interface Contato {
   email?: string | null;
   relacionamento: number;
   pessoal: boolean;
+  atendido: boolean;
 }
 
 // Lista de UFs válidas (para o campo Estado).
@@ -208,10 +209,12 @@ function parseCSV(texto: string): Partial<Contato>[] {
 
 // Opções do filtro da coluna Pessoal.
 type FiltroPessoal = "desmarcados" | "marcados" | "todos";
+type FiltroAtendido = "todos" | "marcados" | "desmarcados";
 
 // Chaves das colunas que podem ser ocultadas (recolhidas).
 type ColunaCrm =
   | "pessoal"
+  | "atendido"
   | "nome"
   | "empresa"
   | "telefone"
@@ -223,6 +226,7 @@ type ColunaCrm =
 
 const COLUNAS_CRM: { key: ColunaCrm; label: string }[] = [
   { key: "pessoal", label: "Pessoal" },
+  { key: "atendido", label: "Atendido" },
   { key: "empresa", label: "Empresa" },
   { key: "nome", label: "Nome" },
   { key: "telefone", label: "Telefone" },
@@ -263,6 +267,7 @@ export function Crm() {
   const [fRelacionamento, setFRelacionamento] = useState<number | "">("");
   // Por padrão mostra apenas os contatos NÃO pessoais (profissionais).
   const [fPessoal, setFPessoal] = useState<FiltroPessoal>("desmarcados");
+  const [fAtendido, setFAtendido] = useState<FiltroAtendido>("todos");
 
   // Colunas recolhidas (clicar no título oculta; clicar na faixa reabre).
   const [colunasOcultas, setColunasOcultas] = useState<Set<ColunaCrm>>(
@@ -320,6 +325,8 @@ export function Crm() {
       if (fRelacionamento !== "" && c.relacionamento !== fRelacionamento) return false;
       if (fPessoal === "desmarcados" && c.pessoal) return false;
       if (fPessoal === "marcados" && !c.pessoal) return false;
+      if (fAtendido === "desmarcados" && c.atendido) return false;
+      if (fAtendido === "marcados" && !c.atendido) return false;
       return true;
     });
   }, [
@@ -333,6 +340,7 @@ export function Crm() {
     fEmail,
     fRelacionamento,
     fPessoal,
+    fAtendido,
   ]);
 
   const totalQuentes = useMemo(
@@ -356,7 +364,8 @@ export function Crm() {
     !!fEstado ||
     !!fEmail ||
     fRelacionamento !== "" ||
-    fPessoal !== "desmarcados";
+    fPessoal !== "desmarcados" ||
+    fAtendido !== "todos";
 
   const limparFiltros = () => {
     setFNome("");
@@ -368,6 +377,7 @@ export function Crm() {
     setFEmail("");
     setFRelacionamento("");
     setFPessoal("desmarcados");
+    setFAtendido("todos");
   };
 
   // Aplica edição em memória; só persiste ao salvar a linha.
@@ -405,6 +415,23 @@ export function Crm() {
       // reverte em caso de erro
       setContatos((prev) =>
         prev.map((c) => (c.id === id ? { ...c, pessoal: !valor } : c)),
+      );
+    }
+  };
+
+  const alternarAtendido = async (id: string, valor: boolean) => {
+    setContatos((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, atendido: valor } : c)),
+    );
+    try {
+      const c = contatos.find((x) => x.id === id);
+      if (!c) return;
+      await api.atualizarContatoCrm(id, { ...semId(c), atendido: valor });
+    } catch (e: any) {
+      setErro(e?.message || "Falha ao atualizar 'Atendido'.");
+      // reverte em caso de erro
+      setContatos((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, atendido: !valor } : c)),
       );
     }
   };
@@ -651,7 +678,7 @@ export function Crm() {
             {totalQuentes} quente(s) (4-5)
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-[13px] text-text-muted">Pessoais:</span>
           <select
             value={fPessoal}
@@ -661,6 +688,16 @@ export function Crm() {
             <option value="desmarcados">Ocultar pessoais</option>
             <option value="marcados">Só pessoais</option>
             <option value="todos">Mostrar todos</option>
+          </select>
+          <span className="text-[13px] text-text-muted">Atendidos:</span>
+          <select
+            value={fAtendido}
+            onChange={(e) => setFAtendido(e.target.value as FiltroAtendido)}
+            className="cursor-pointer rounded-md border border-border bg-surface px-2 py-1.5 text-[13px] text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="todos">Mostrar todos</option>
+            <option value="marcados">Só atendidos</option>
+            <option value="desmarcados">Ocultar atendidos</option>
           </select>
           {algumFiltroAtivo && (
             <Button variant="ghost" icon={<X size={14} />} onClick={limparFiltros}>
@@ -699,13 +736,13 @@ export function Crm() {
                 {/* Títulos (clique no título oculta a coluna) */}
                 <tr className="border-b border-divider text-left text-[12px] uppercase tracking-wide text-text-faint">
                   {/* Seleção em lote: checkbox "selecionar todos" (visíveis) */}
-                  <th className="px-2 py-2 text-center font-semibold">
+                  <th className="border-r border-divider px-2 py-2 text-center font-semibold">
                     <input
                       type="checkbox"
                       checked={todosVisiveisMarcados}
                       onChange={alternarSelecionarTodos}
-                      title="Selecionar todos os contatos visíveis"
-                      className="h-4 w-4 cursor-pointer accent-primary"
+                      title="Selecionar todos os contatos visíveis (para excluir)"
+                      className="h-4 w-4 cursor-pointer accent-danger"
                     />
                   </th>
                   {COLUNAS_CRM.map((col) =>
@@ -721,7 +758,7 @@ export function Crm() {
                       <ColunaHeader
                         key={col.key}
                         label={col.label}
-                        align={col.key === "pessoal" ? "center" : "left"}
+                        align={col.key === "pessoal" || col.key === "atendido" ? "center" : "left"}
                         onOcultar={() => toggleColuna(col.key)}
                       />
                     ),
@@ -842,8 +879,11 @@ export function Crm() {
                           marcado ? "bg-danger/5" : ""
                         } ${sujo ? "bg-amber-500/5" : ""}`}
                       >
-                        {/* Seleção múltipla: checkbox no lugar dos botões antigos */}
-                        <td className="px-2 py-1 text-center">
+                        {/* Seleção múltipla: checkbox no lugar dos botões antigos.
+                            Borda à direita separa a coluna de "ação em lote"
+                            (excluir) das colunas de atributo do contato
+                            (Pessoal / Atendido) logo em seguida. */}
+                        <td className="border-r border-divider px-2 py-1 text-center">
                           <input
                             type="checkbox"
                             checked={marcado}
@@ -863,6 +903,20 @@ export function Crm() {
                               onChange={(e) => alternarPessoal(c.id, e.target.checked)}
                               title="Marcar como contato pessoal"
                               className="h-4 w-4 cursor-pointer accent-primary"
+                            />
+                          </td>
+                        )}
+                        {/* Atendido */}
+                        {oculta("atendido") ? (
+                          <ColunaRecolhida label="Atendido" onMostrar={() => toggleColuna("atendido")} />
+                        ) : (
+                          <td className="px-2 py-1 text-center">
+                            <input
+                              type="checkbox"
+                              checked={c.atendido}
+                              onChange={(e) => alternarAtendido(c.id, e.target.checked)}
+                              title="Marcar cliente como já atendido"
+                              className="h-4 w-4 cursor-pointer accent-success"
                             />
                           </td>
                         )}
@@ -1126,6 +1180,7 @@ function semId(c: Contato) {
     email: c.email || undefined,
     relacionamento: c.relacionamento,
     pessoal: c.pessoal,
+    atendido: c.atendido,
   };
 }
 
