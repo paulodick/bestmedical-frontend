@@ -31,6 +31,9 @@ interface Recebivel {
   valor: number;
   pago: boolean;
   dataPagamento: string | null;
+  // Condição de pagamento (texto livre, ex.: "Antecipado", "30 dias") —
+  // alternativa à dataPagamento quando ainda não há uma data definida.
+  condicaoPagamento: string | null;
   observacoes: string | null;
 }
 
@@ -44,6 +47,7 @@ function recebivelVazio(): Omit<Recebivel, "id"> {
     valor: 0,
     pago: false,
     dataPagamento: null,
+    condicaoPagamento: null,
     observacoes: "",
   };
 }
@@ -59,6 +63,7 @@ interface Registro {
   cnpj: string;
   total: number;
   dataPagamento?: string | null;
+  condicaoPagamento?: string | null;
   pago: boolean;
   atrasado: boolean;
   cancelado: boolean;
@@ -147,6 +152,9 @@ export function ControleFinanceiro({
   // Edição inline da data de pagamento
   const [editId, setEditId] = useState<string | null>(null);
   const [rascunhoData, setRascunhoData] = useState("");
+  // Condição de pagamento (texto livre) — alternativa à data, mutuamente
+  // exclusiva com ela na UI (preencher uma desabilita a outra).
+  const [rascunhoCondicao, setRascunhoCondicao] = useState("");
 
   // Modal de Resumo de recebimentos
   const [resumoAberto, setResumoAberto] = useState(false);
@@ -262,7 +270,10 @@ export function ControleFinanceiro({
 
   // Salva a data de pagamento editada inline.
   const salvarDataPagamento = (r: Registro) => {
-    salvarStatus(r, { dataPagamento: rascunhoData || null });
+    salvarStatus(r, {
+      dataPagamento: rascunhoData || null,
+      condicaoPagamento: rascunhoData ? null : rascunhoCondicao || null,
+    });
     setEditId(null);
   };
 
@@ -283,6 +294,7 @@ export function ControleFinanceiro({
       valor: rec.valor,
       pago: rec.pago,
       dataPagamento: rec.dataPagamento,
+      condicaoPagamento: rec.condicaoPagamento,
       observacoes: rec.observacoes || "",
     });
     setRecModalAberto(true);
@@ -344,6 +356,7 @@ export function ControleFinanceiro({
       cnpj: o.cnpj,
       total: totalFinal(o),
       dataPagamento: o.dataPagamento ?? null,
+      condicaoPagamento: o.condicaoPagamento ?? null,
       pago: !!o.pago,
       atrasado: !!o.atrasado,
       cancelado: !!o.cancelado,
@@ -363,6 +376,7 @@ export function ControleFinanceiro({
         cnpj: p.cnpj,
         total: p.total,
         dataPagamento: p.dataPagamento ?? null,
+        condicaoPagamento: p.condicaoPagamento ?? null,
         pago: !!p.pago,
         atrasado: !!p.atrasado,
         cancelado: !!p.cancelado,
@@ -378,6 +392,7 @@ export function ControleFinanceiro({
       cnpj: rec.cnpj || "",
       total: rec.valor,
       dataPagamento: rec.dataPagamento ?? null,
+      condicaoPagamento: rec.condicaoPagamento ?? null,
       pago: !!rec.pago,
       atrasado: false,
       cancelado: false,
@@ -790,19 +805,32 @@ export function ControleFinanceiro({
                     <td className="px-3 py-2.5 font-medium text-slate-900">
                       {formatBRL(r.total)}
                     </td>
-                    {/* Data de pagamento — editável inline (paulodick) */}
+                    {/* Data de pagamento (ou condição, em texto livre) —
+                        editável inline (paulodick). Os dois campos são
+                        mutuamente exclusivos: preencher um desabilita o
+                        outro, tanto na edição quanto ao salvar. */}
                     <td className="px-3 py-2.5">
                       {emEdicao ? (
                         <div className="flex items-center gap-1">
                           <Input
                             type="date"
                             value={rascunhoData}
+                            disabled={!!rascunhoCondicao}
                             onChange={(e) => setRascunhoData(e.target.value)}
-                            className="min-w-[140px]"
+                            className="min-w-[140px] disabled:cursor-not-allowed disabled:opacity-50"
+                          />
+                          <span className="text-[11px] text-slate-400">ou</span>
+                          <Input
+                            type="text"
+                            value={rascunhoCondicao}
+                            disabled={!!rascunhoData}
+                            onChange={(e) => setRascunhoCondicao(e.target.value)}
+                            placeholder="Antecipado, 30 dias..."
+                            className="min-w-[140px] disabled:cursor-not-allowed disabled:opacity-50"
                           />
                           <button
                             onClick={() => salvarDataPagamento(r)}
-                            title="Salvar data"
+                            title="Salvar"
                             className="rounded-md p-1.5 text-emerald-600 transition hover:bg-emerald-50"
                           >
                             <Calendar size={16} />
@@ -822,14 +850,15 @@ export function ControleFinanceiro({
                           onClick={() => {
                             setEditId(r.id);
                             setRascunhoData(r.dataPagamento || "");
+                            setRascunhoCondicao(r.condicaoPagamento || "");
                           }}
                           title={
                             podeEditar
-                              ? "Definir data prevista do recebimento"
+                              ? "Definir data prevista (ou condição de pagamento, em texto livre)"
                               : undefined
                           }
                           className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] transition ${
-                            r.dataPagamento
+                            r.dataPagamento || r.condicaoPagamento
                               ? vencido && !r.pago
                                 ? "font-semibold text-rose-600"
                                 : "text-slate-700"
@@ -839,7 +868,7 @@ export function ControleFinanceiro({
                           <Calendar size={14} className="shrink-0" />
                           {r.dataPagamento
                             ? formatDataBR(r.dataPagamento)
-                            : "definir"}
+                            : r.condicaoPagamento || "definir"}
                         </button>
                       )}
                     </td>
