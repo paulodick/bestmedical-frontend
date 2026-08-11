@@ -143,6 +143,9 @@ export interface Orcamento {
   cancelado?: boolean;
   // Data prevista do recebimento (ISO yyyy-mm-dd) ou null
   dataPagamento?: string | null;
+  // Condição de pagamento (texto livre, ex.: "Antecipado", "30 dias") —
+  // alternativa à dataPagamento quando ainda não há uma data definida.
+  condicaoPagamento?: string | null;
   // Quando o orçamento foi enviado (ISO datetime) — coluna "Enviado"
   enviadoEm?: string | null;
 }
@@ -269,6 +272,9 @@ export interface Proposta {
   cancelado?: boolean;
   // Data prevista do recebimento (ISO yyyy-mm-dd) ou null
   dataPagamento?: string | null;
+  // Condição de pagamento (texto livre, ex.: "Antecipado", "30 dias") —
+  // alternativa à dataPagamento quando ainda não há uma data definida.
+  condicaoPagamento?: string | null;
   // Data de início da vigência do contrato (ISO yyyy-mm-dd) ou null
   inicioContrato?: string | null;
   // Quando a proposta foi enviada (ISO datetime) — usado na coluna "Enviado"

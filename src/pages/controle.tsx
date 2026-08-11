@@ -278,6 +278,13 @@ export function Controle({
   const [recebidoSalvando, setRecebidoSalvando] = useState(false);
   const [recebidoErro, setRecebidoErro] = useState<string | null>(null);
 
+  // Modal "Condição de pagamento": nota em texto livre (ex.: "Antecipado",
+  // "30 dias"), usada enquanto não há uma data definida. Independente do
+  // fluxo "Recebido" — não mexe no Fluxo de Caixa/Dashboard.
+  const [condPagReg, setCondPagReg] = useState<Registro | null>(null);
+  const [condPagTexto, setCondPagTexto] = useState("");
+  const [condPagSalvando, setCondPagSalvando] = useState(false);
+
   // Upload do contrato assinado: id da proposta em processamento.
   const [uploadCarregando, setUploadCarregando] = useState<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
@@ -443,6 +450,30 @@ export function Controle({
       );
     } finally {
       setRecebidoSalvando(false);
+    }
+  };
+
+  // Abre o modal para anotar a condição de pagamento (texto livre).
+  const abrirCondicaoPagamento = (r: Registro) => {
+    const atual = (r.orcamento as unknown as { condicaoPagamento?: string | null })
+      ?.condicaoPagamento;
+    setCondPagTexto(atual || "");
+    setCondPagReg(r);
+  };
+
+  // Salva a condição de pagamento. Enviar dataPagamento: null junto garante
+  // que os dois campos nunca fiquem preenchidos ao mesmo tempo (mesma regra
+  // já aplicada no backend).
+  const salvarCondicaoPagamento = () => {
+    if (!condPagReg) return;
+    setCondPagSalvando(true);
+    try {
+      atualizar(condPagReg.id, {
+        condicaoPagamento: condPagTexto.trim() || null,
+      } as Partial<Orcamento>);
+      setCondPagReg(null);
+    } finally {
+      setCondPagSalvando(false);
     }
   };
 
@@ -1009,6 +1040,30 @@ export function Controle({
                             interactive
                           />
                         )}
+                        {/* Selo "Condição de pagamento": nota em texto livre
+                            (ex.: "Antecipado", "30 dias"), usada quando ainda
+                            não há uma data definida para o recebimento. Some
+                            sozinha ao confirmar "Recebido" (o backend zera
+                            esse campo quando a data real é gravada). */}
+                        {r.tipoRegistro === "orcamento" &&
+                          !(r.orcamento as unknown as { dataPagamento?: string | null })
+                            ?.dataPagamento && (
+                            <StatusPill
+                              on={
+                                !!(r.orcamento as unknown as {
+                                  condicaoPagamento?: string | null;
+                                })?.condicaoPagamento
+                              }
+                              label={
+                                (r.orcamento as unknown as {
+                                  condicaoPagamento?: string | null;
+                                })?.condicaoPagamento || "Condição pgto."
+                              }
+                              tom="warning"
+                              onClick={() => abrirCondicaoPagamento(r)}
+                              interactive
+                            />
+                          )}
                         {/* Cancelado — funciona como lixeira: oculta das tabelas */}
                         <StatusPill
                           on={cancelado}
@@ -1207,6 +1262,39 @@ export function Controle({
           {recebidoErro && (
             <p className="text-sm text-rose-600">{recebidoErro}</p>
           )}
+        </div>
+      </Modal>
+
+      {/* Modal "Condição de pagamento": nota em texto livre, alternativa à
+          data quando ainda não há uma definida (ex.: "Antecipado", "30 dias").
+          Independente do fluxo "Recebido" — não mexe no Fluxo de Caixa. */}
+      <Modal
+        open={!!condPagReg}
+        onClose={() => setCondPagReg(null)}
+        title={`Condição de pagamento — ${condPagReg?.numero ?? ""}`}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setCondPagReg(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={salvarCondicaoPagamento} disabled={condPagSalvando}>
+              {condPagSalvando ? "Salvando..." : "Salvar"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-text-muted">
+            Anote a condição combinada enquanto não há uma data exata de
+            recebimento (ex.: "Antecipado", "30 dias"). Deixe em branco para
+            limpar.
+          </p>
+          <Input
+            label="Condição de pagamento"
+            value={condPagTexto}
+            onChange={(e) => setCondPagTexto(e.target.value)}
+            placeholder="Antecipado, 30 dias..."
+          />
         </div>
       </Modal>
 

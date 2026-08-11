@@ -246,12 +246,14 @@ export function StatusPill({
   label: string;
   onClick?: () => void;
   interactive?: boolean;
-  tom?: "success" | "danger";
+  tom?: "success" | "danger" | "warning";
 }) {
   const corPonto = on
     ? tom === "danger"
       ? "bg-rose-600"
-      : "bg-success"
+      : tom === "warning"
+        ? "bg-amber-500"
+        : "bg-success"
     : "bg-text-faint";
 
   const conteudo = (
@@ -262,7 +264,11 @@ export function StatusPill({
   );
 
   const corAtivo =
-    tom === "danger" ? "bg-rose-100 text-rose-700" : "bg-success-soft text-success";
+    tom === "danger"
+      ? "bg-rose-100 text-rose-700"
+      : tom === "warning"
+        ? "bg-amber-100 text-amber-700"
+        : "bg-success-soft text-success";
 
   const classeBase = `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
     on ? corAtivo : "bg-surface-offset text-text-faint"
