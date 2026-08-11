@@ -29,6 +29,7 @@ interface Contato {
   relacionamento: number;
   pessoal: boolean;
   atendido: boolean;
+  temWhatsapp: boolean;
 }
 
 // Lista de UFs válidas (para o campo Estado).
@@ -210,6 +211,8 @@ function parseCSV(texto: string): Partial<Contato>[] {
 // Opções do filtro da coluna Pessoal.
 type FiltroPessoal = "desmarcados" | "marcados" | "todos";
 type FiltroAtendido = "todos" | "marcados" | "desmarcados";
+// Filtro do marcador "tem WhatsApp" (ícone na coluna Nome).
+type FiltroWhatsapp = "todos" | "marcados" | "desmarcados";
 
 // Chaves das colunas que podem ser ocultadas (recolhidas).
 type ColunaCrm =
@@ -236,6 +239,23 @@ const COLUNAS_CRM: { key: ColunaCrm; label: string }[] = [
   { key: "email", label: "E-mail" },
   { key: "relacionamento", label: "Relacionamento" },
 ];
+
+// Larguras padrão (px) das colunas redimensionáveis. O usuário pode
+// arrastar a borda direita do cabeçalho para ajustar; o valor escolhido
+// fica salvo no localStorage (igual planilha).
+const DEFAULT_COL_WIDTH: Record<ColunaCrm, number> = {
+  pessoal: 76,
+  atendido: 76,
+  empresa: 170,
+  nome: 210,
+  telefone: 130,
+  telefonePessoal: 140,
+  cidade: 120,
+  estado: 80,
+  email: 190,
+  relacionamento: 150,
+};
+const COL_WIDTHS_STORAGE_KEY = "crm_col_widths_v1";
 
 export function Crm() {
   const [contatos, setContatos] = useState<Contato[]>([]);
@@ -268,6 +288,7 @@ export function Crm() {
   // Por padrão mostra apenas os contatos NÃO pessoais (profissionais).
   const [fPessoal, setFPessoal] = useState<FiltroPessoal>("desmarcados");
   const [fAtendido, setFAtendido] = useState<FiltroAtendido>("todos");
+  const [fWhatsapp, setFWhatsapp] = useState<FiltroWhatsapp>("todos");
 
   // Colunas recolhidas (clicar no título oculta; clicar na faixa reabre).
   const [colunasOcultas, setColunasOcultas] = useState<Set<ColunaCrm>>(
@@ -281,6 +302,52 @@ export function Crm() {
       else novo.add(k);
       return novo;
     });
+
+  // Largura das colunas (redimensionável arrastando a borda do cabeçalho,
+  // igual planilha). Persistida no localStorage para lembrar entre sessões.
+  const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
+    try {
+      const salvo = localStorage.getItem(COL_WIDTHS_STORAGE_KEY);
+      return salvo ? JSON.parse(salvo) : {};
+    } catch {
+      return {};
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(COL_WIDTHS_STORAGE_KEY, JSON.stringify(colWidths));
+    } catch {
+      // localStorage indisponível: ignora silenciosamente.
+    }
+  }, [colWidths]);
+  const larguraColuna = (k: ColunaCrm) => colWidths[k] ?? DEFAULT_COL_WIDTH[k];
+  // Arrasta a borda direita do cabeçalho para redimensionar a coluna `k`.
+  const iniciarRedimensionar = (k: ColunaCrm, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = larguraColuna(k);
+    const onMove = (ev: MouseEvent) => {
+      const novaLargura = Math.max(50, Math.min(520, startWidth + (ev.clientX - startX)));
+      setColWidths((prev) => ({ ...prev, [k]: novaLargura }));
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+  // Duplo clique na borda: volta a coluna para a largura padrão.
+  const resetarLarguraColuna = (k: ColunaCrm, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setColWidths((prev) => {
+      const novo = { ...prev };
+      delete novo[k];
+      return novo;
+    });
+  };
 
   // Carrega TODOS os contatos uma vez; a filtragem é feita no cliente.
   const carregar = useCallback(async () => {
@@ -327,6 +394,8 @@ export function Crm() {
       if (fPessoal === "marcados" && !c.pessoal) return false;
       if (fAtendido === "desmarcados" && c.atendido) return false;
       if (fAtendido === "marcados" && !c.atendido) return false;
+      if (fWhatsapp === "desmarcados" && c.temWhatsapp) return false;
+      if (fWhatsapp === "marcados" && !c.temWhatsapp) return false;
       return true;
     });
   }, [
@@ -341,6 +410,7 @@ export function Crm() {
     fRelacionamento,
     fPessoal,
     fAtendido,
+    fWhatsapp,
   ]);
 
   const totalQuentes = useMemo(
@@ -365,7 +435,8 @@ export function Crm() {
     !!fEmail ||
     fRelacionamento !== "" ||
     fPessoal !== "desmarcados" ||
-    fAtendido !== "todos";
+    fAtendido !== "todos" ||
+    fWhatsapp !== "todos";
 
   const limparFiltros = () => {
     setFNome("");
@@ -378,6 +449,7 @@ export function Crm() {
     setFRelacionamento("");
     setFPessoal("desmarcados");
     setFAtendido("todos");
+    setFWhatsapp("todos");
   };
 
   // Aplica edição em memória; só persiste ao salvar a linha.
@@ -432,6 +504,25 @@ export function Crm() {
       // reverte em caso de erro
       setContatos((prev) =>
         prev.map((c) => (c.id === id ? { ...c, atendido: !valor } : c)),
+      );
+    }
+  };
+
+  // Ícone de WhatsApp na coluna Nome: clicar alterna o marcador e salva
+  // imediatamente (mesmo padrão de Pessoal/Atendido).
+  const alternarTemWhatsapp = async (id: string, valor: boolean) => {
+    setContatos((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, temWhatsapp: valor } : c)),
+    );
+    try {
+      const c = contatos.find((x) => x.id === id);
+      if (!c) return;
+      await api.atualizarContatoCrm(id, { ...semId(c), temWhatsapp: valor });
+    } catch (e: any) {
+      setErro(e?.message || "Falha ao atualizar 'Tem WhatsApp'.");
+      // reverte em caso de erro
+      setContatos((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, temWhatsapp: !valor } : c)),
       );
     }
   };
@@ -699,6 +790,16 @@ export function Crm() {
             <option value="marcados">Só atendidos</option>
             <option value="desmarcados">Ocultar atendidos</option>
           </select>
+          <span className="text-[13px] text-text-muted">WhatsApp:</span>
+          <select
+            value={fWhatsapp}
+            onChange={(e) => setFWhatsapp(e.target.value as FiltroWhatsapp)}
+            className="cursor-pointer rounded-md border border-border bg-surface px-2 py-1.5 text-[13px] text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="todos">Mostrar todos</option>
+            <option value="marcados">Só com WhatsApp</option>
+            <option value="desmarcados">Ocultar com WhatsApp</option>
+          </select>
           {algumFiltroAtivo && (
             <Button variant="ghost" icon={<X size={14} />} onClick={limparFiltros}>
               Limpar filtros
@@ -731,7 +832,19 @@ export function Crm() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1040px] border-collapse text-sm">
+            <table className="border-collapse text-sm" style={{ tableLayout: "fixed" }}>
+              {/* Larguras fixas por coluna: permite redimensionar igual planilha
+                  (arrastando a borda do cabeçalho) e faz a tabela rolar
+                  horizontalmente quando a soma das colunas passa do container. */}
+              <colgroup>
+                <col style={{ width: 40 }} />
+                {COLUNAS_CRM.map((col) => (
+                  <col
+                    key={col.key}
+                    style={{ width: oculta(col.key) ? 28 : larguraColuna(col.key) }}
+                  />
+                ))}
+              </colgroup>
               <thead>
                 {/* Títulos (clique no título oculta a coluna) */}
                 <tr className="border-b border-divider text-left text-[12px] uppercase tracking-wide text-text-faint">
@@ -760,6 +873,8 @@ export function Crm() {
                         label={col.label}
                         align={col.key === "pessoal" || col.key === "atendido" ? "center" : "left"}
                         onOcultar={() => toggleColuna(col.key)}
+                        onResizeStart={(e) => iniciarRedimensionar(col.key, e)}
+                        onResizeReset={(e) => resetarLarguraColuna(col.key, e)}
                       />
                     ),
                   )}
@@ -928,12 +1043,32 @@ export function Crm() {
                             <CelulaInput value={c.empresa || ""} onChange={(v) => editarCampo(c.id, "empresa", v)} />
                           </td>
                         )}
-                        {/* Nome */}
+                        {/* Nome (com ícone de WhatsApp no canto esquerdo, quando marcado) */}
                         {oculta("nome") ? (
                           <ColunaRecolhida label="Nome" onMostrar={() => toggleColuna("nome")} />
                         ) : (
-                          <td className="px-1 py-1">
-                            <CelulaInput value={c.nome} onChange={(v) => editarCampo(c.id, "nome", v)} />
+                          <td className="relative px-1 py-1">
+                            <button
+                              type="button"
+                              onClick={() => alternarTemWhatsapp(c.id, !c.temWhatsapp)}
+                              title={
+                                c.temWhatsapp
+                                  ? "Tem WhatsApp (clique para desmarcar)"
+                                  : "Marcar que tem WhatsApp"
+                              }
+                              className={`absolute left-1.5 top-1/2 z-10 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded-full transition ${
+                                c.temWhatsapp
+                                  ? "text-emerald-500 opacity-100"
+                                  : "text-text-faint opacity-25 hover:opacity-60"
+                              }`}
+                            >
+                              <WhatsAppIcon size={12} />
+                            </button>
+                            <CelulaInput
+                              value={c.nome}
+                              onChange={(v) => editarCampo(c.id, "nome", v)}
+                              className="pl-5"
+                            />
                           </td>
                         )}
                         {/* Telefone */}
@@ -1181,35 +1316,51 @@ function semId(c: Contato) {
     relacionamento: c.relacionamento,
     pessoal: c.pessoal,
     atendido: c.atendido,
+    temWhatsapp: c.temWhatsapp,
   };
 }
 
 // Cabeçalho de coluna clicável: clicar no título recolhe a coluna.
+// A faixa fina na borda direita permite arrastar para redimensionar
+// (igual planilha); duplo clique nela volta a coluna à largura padrão.
 function ColunaHeader({
   label,
   onOcultar,
   align = "left",
+  onResizeStart,
+  onResizeReset,
 }: {
   label: string;
   onOcultar: () => void;
   align?: "left" | "center";
+  onResizeStart?: (e: React.MouseEvent) => void;
+  onResizeReset?: (e: React.MouseEvent) => void;
 }) {
   return (
-    <th className="px-2 py-2 font-semibold">
+    <th className="relative overflow-hidden px-2 py-2 font-semibold">
       <button
         type="button"
         onClick={onOcultar}
         title="Clique para ocultar esta coluna"
-        className={`group inline-flex w-full items-center gap-1 ${
+        className={`group inline-flex w-full items-center gap-1 overflow-hidden ${
           align === "center" ? "justify-center" : "justify-start"
         } cursor-pointer text-[12px] uppercase tracking-wide text-text-faint transition hover:text-text`}
       >
-        <span>{label}</span>
+        <span className="truncate">{label}</span>
         <EyeOff
           size={12}
-          className="opacity-0 transition group-hover:opacity-70"
+          className="shrink-0 opacity-0 transition group-hover:opacity-70"
         />
       </button>
+      {onResizeStart && (
+        <div
+          onMouseDown={onResizeStart}
+          onDoubleClick={onResizeReset}
+          onClick={(e) => e.stopPropagation()}
+          title="Arraste para redimensionar · duplo clique para restaurar"
+          className="absolute right-0 top-0 h-full w-2 cursor-col-resize select-none hover:bg-primary/40 active:bg-primary/60"
+        />
+      )}
     </th>
   );
 }
@@ -1276,17 +1427,35 @@ function CelulaInput({
   value,
   onChange,
   type = "text",
+  className = "",
 }: {
   value: string;
   onChange: (v: string) => void;
   type?: string;
+  className?: string;
 }) {
   return (
     <input
       type={type}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-md border border-transparent bg-transparent px-2 py-1.5 text-[13px] text-text outline-none transition hover:border-border focus:border-primary focus:bg-surface focus:ring-2 focus:ring-primary/20"
+      className={`w-full rounded-md border border-transparent bg-transparent px-2 py-1.5 text-[13px] text-text outline-none transition hover:border-border focus:border-primary focus:bg-surface focus:ring-2 focus:ring-primary/20 ${className}`}
     />
+  );
+}
+
+// Glifo do WhatsApp (identificação visual do contato, uso nominativo).
+function WhatsAppIcon({ size = 14, className = "" }: { size?: number; className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.29.173-1.414-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413" />
+    </svg>
   );
 }
