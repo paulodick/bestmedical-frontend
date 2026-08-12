@@ -284,6 +284,12 @@ export interface Proposta {
   condicaoPagamento?: string | null;
   // Data de início da vigência do contrato (ISO yyyy-mm-dd) ou null
   inicioContrato?: string | null;
+  // Período de vigência do contrato, em meses (padrão 12) — determina
+  // quantas mensalidades (parcelas) são geradas em Recebíveis.
+  vigenciaMeses?: number;
+  // Mensalidades do contrato (pagamento recorrente), uma por mês a partir
+  // de inicioContrato — cada uma pagável independentemente das demais.
+  parcelas?: Parcela[];
   // Quando a proposta foi enviada (ISO datetime) — usado na coluna "Enviado"
   enviadoEm?: string | null;
   // Metadados do contrato assinado carregado (PDF guardado no servidor)

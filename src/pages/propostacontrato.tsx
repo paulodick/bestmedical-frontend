@@ -99,6 +99,7 @@ function novaPropostaVazia(numero: string): Proposta {
     vigente: false,
     reprovado: false,
     inicioContrato: null,
+    vigenciaMeses: 12,
     enviadoEm: null,
     contratoAssinado: null,
     equipamentos: [equipamentoVazio()],
@@ -837,6 +838,38 @@ export function PropostaContrato({ propostaParaEditar }: PropostaContratoProps =
                   <p className="text-[12px] text-text-muted">
                     O pagamento mensal do contrato só entra no Controle
                     Financeiro após o preenchimento desta data.
+                  </p>
+                </div>
+              </div>
+
+              {/* Vigência: define quantas mensalidades são geradas em
+                  Recebíveis (uma por mês, a partir do dia do "Início do
+                  contrato"). Padrão 12, editável. */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Input
+                  label="Vigência do contrato (meses)"
+                  type="number"
+                  min="1"
+                  max="120"
+                  value={p.vigenciaMeses ?? 12}
+                  onChange={(e) =>
+                    setP({
+                      ...p,
+                      vigenciaMeses: Math.max(
+                        1,
+                        Math.min(120, Number(e.target.value) || 12),
+                      ),
+                    })
+                  }
+                />
+                <div className="flex items-end">
+                  <p className="text-[12px] text-text-muted">
+                    Gera automaticamente esse número de mensalidades em
+                    Recebíveis (todo dia {" "}
+                    {p.inicioContrato
+                      ? Number(p.inicioContrato.slice(8, 10))
+                      : "—"}
+                    , a partir do início do contrato).
                   </p>
                 </div>
               </div>
