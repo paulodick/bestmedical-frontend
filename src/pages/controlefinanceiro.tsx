@@ -246,15 +246,18 @@ export function ControleFinanceiro({
       }
       return;
     }
+    // No modo Planilha, r.id pode ser um id sintético de mensalidade
+    // (ex.: "abc-parcela-xyz") — usa sempre o id real da proposta.
+    const propostaId = r.proposta?.id ?? r.id;
     setPropostas((prev) =>
-      prev.map((p) => (p.id === r.id ? { ...p, ...patch } : p)),
+      prev.map((p) => (p.id === propostaId ? { ...p, ...patch } : p)),
     );
     if (API_ENABLED) {
       api
-        .atualizarStatusProposta(r.id, patch)
+        .atualizarStatusProposta(propostaId, patch)
         .then((p) =>
           setPropostas((prev) =>
-            prev.map((x) => (x.id === r.id ? (p as Proposta) : x)),
+            prev.map((x) => (x.id === propostaId ? (p as Proposta) : x)),
           ),
         )
         .catch((e) => console.error("Falha ao atualizar proposta:", e));
@@ -265,6 +268,33 @@ export function ControleFinanceiro({
   const togglePago = (r: Registro) => {
     const novo = !r.pago;
     salvarStatus(r, { pago: novo, ...(novo ? { atrasado: false } : {}) });
+  };
+
+  // Marca/desmarca uma mensalidade específica do contrato como paga —
+  // independente das demais (mesmo padrão do togglePagoParcela do store,
+  // para orçamentos). Propostas são gerenciadas localmente nesta página.
+  const togglePagoParcelaContrato = (
+    propostaId: string,
+    parcelaId: string,
+    pago: boolean,
+  ) => {
+    setPropostas((prev) =>
+      prev.map((p) =>
+        p.id === propostaId
+          ? {
+              ...p,
+              parcelas: (p.parcelas || []).map((pc) =>
+                pc.id === parcelaId ? { ...pc, pago } : pc,
+              ),
+            }
+          : p,
+      ),
+    );
+    if (API_ENABLED) {
+      api
+        .togglePagoParcelaContrato(propostaId, parcelaId, pago)
+        .catch((e) => console.error("Falha ao atualizar mensalidade:", e));
+    }
   };
 
   // Atrasado: alterna manualmente (o sistema também aciona automaticamente).
@@ -389,23 +419,53 @@ export function ControleFinanceiro({
     // Contratos (propostas) só entram no Controle Financeiro depois que a
     // data de início do contrato é preenchida na página da proposta.
     // Sem essa data, o pagamento mensal ainda não foi ativado.
+    // Contratos com mensalidades já geradas (parcelas, ver vigenciaMeses)
+    // entram como uma linha por mês — cada mensalidade é paga
+    // independentemente das demais (ex.: mês 1 pago, mês 2 ainda não).
+    // Contratos sem parcelas ainda (proposta antiga ou sem "Início do
+    // contrato" preenchido) caem no formato antigo: uma linha só.
     const dasProp: Registro[] = propostas
       .filter((p) => !!p.assinado)
-      .map((p) => ({
-        tipoRegistro: "proposta",
-        id: p.id,
-        numero: p.numero,
-        data: p.data,
-        empresa: p.empresa,
-        cnpj: p.cnpj,
-        total: p.total,
-        dataPagamento: p.dataPagamento ?? null,
-        condicaoPagamento: p.condicaoPagamento ?? null,
-        pago: !!p.pago,
-        atrasado: !!p.atrasado,
-        cancelado: !!p.cancelado,
-        proposta: p,
-      }));
+      .flatMap((p): Registro[] => {
+        const mensalidades = p.parcelas || [];
+        if (mensalidades.length === 0) {
+          return [
+            {
+              tipoRegistro: "proposta",
+              id: p.id,
+              numero: p.numero,
+              data: p.data,
+              empresa: p.empresa,
+              cnpj: p.cnpj,
+              total: p.total,
+              dataPagamento: p.dataPagamento ?? null,
+              condicaoPagamento: p.condicaoPagamento ?? null,
+              pago: !!p.pago,
+              atrasado: !!p.atrasado,
+              cancelado: !!p.cancelado,
+              proposta: p,
+            },
+          ];
+        }
+        return mensalidades.map((pc) => ({
+          tipoRegistro: "proposta",
+          id: `${p.id}-parcela-${pc.id}`,
+          numero: `${p.numero} · ${pc.numero}/${mensalidades.length}`,
+          data: p.data,
+          empresa: p.empresa,
+          cnpj: p.cnpj,
+          total: pc.valor,
+          dataPagamento: pc.data || null,
+          condicaoPagamento: pc.condicaoVencimento || null,
+          pago: !!p.pago,
+          atrasado: !!p.atrasado,
+          cancelado: !!p.cancelado,
+          proposta: p,
+          parcelaLabel: `${pc.numero}/${mensalidades.length}`,
+          parcelaId: pc.id,
+          parcelaPago: !!pc.pago,
+        }));
+      });
     // Recebíveis avulsos (manuais) entram diretamente na lista.
     const dosRec: Registro[] = recebiveis.map((rec) => ({
       tipoRegistro: "recebivel",
@@ -979,15 +1039,25 @@ export function ControleFinanceiro({
                         <StatusPill
                           on={r.parcelaLabel ? !!r.parcelaPago : r.pago}
                           label="Pago"
-                          onClick={() =>
-                            r.parcelaLabel && r.parcelaId
-                              ? togglePagoParcela(
-                                  (r.orcamento as Orcamento).id,
-                                  r.parcelaId,
-                                  !r.parcelaPago,
-                                )
-                              : togglePago(r)
-                          }
+                          onClick={() => {
+                            if (!r.parcelaLabel || !r.parcelaId) {
+                              togglePago(r);
+                              return;
+                            }
+                            if (r.tipoRegistro === "proposta") {
+                              togglePagoParcelaContrato(
+                                (r.proposta as Proposta).id,
+                                r.parcelaId,
+                                !r.parcelaPago,
+                              );
+                            } else {
+                              togglePagoParcela(
+                                (r.orcamento as Orcamento).id,
+                                r.parcelaId,
+                                !r.parcelaPago,
+                              );
+                            }
+                          }}
                           interactive
                         />
                         {(!r.parcelaLabel || r.parcelaLabel.startsWith("1/")) && (

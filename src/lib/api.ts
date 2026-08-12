@@ -226,6 +226,17 @@ export const api = {
     req<any>("/propostas", { method: "POST", body: JSON.stringify(p) }),
   atualizarProposta: (id: string, p: any) =>
     req<any>(`/propostas/${id}`, { method: "PUT", body: JSON.stringify(p) }),
+  // Marca/desmarca uma mensalidade específica do contrato como paga
+  // (independente das demais) — usado em Recebíveis (Planilha).
+  togglePagoParcelaContrato: (
+    propostaId: string,
+    parcelaId: string,
+    pago: boolean,
+  ) =>
+    req<any>(`/propostas/${propostaId}/parcelas/${parcelaId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ pago }),
+    }),
   atualizarStatusProposta: (id: string, patch: any) =>
     req<any>(`/propostas/${id}/status`, {
       method: "PATCH",
