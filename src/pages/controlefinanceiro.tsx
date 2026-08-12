@@ -457,7 +457,14 @@ export function ControleFinanceiro({
           total: pc.valor,
           dataPagamento: pc.data || null,
           condicaoPagamento: pc.condicaoVencimento || null,
-          pago: !!p.pago,
+          // Cada mensalidade tem seu próprio status de pago (pc.pago), não o
+          // do contrato inteiro (p.pago) — contratos antigos, marcados como
+          // "pago" no formato de linha única antes desta funcionalidade,
+          // tinham TODAS as mensalidades futuras escondidas pelo filtro
+          // padrão (que oculta itens pagos) por herdarem esse flag do
+          // documento. atrasado/cancelado continuam do documento inteiro
+          // (não fazem sentido por mensalidade).
+          pago: !!pc.pago,
           atrasado: !!p.atrasado,
           cancelado: !!p.cancelado,
           proposta: p,
