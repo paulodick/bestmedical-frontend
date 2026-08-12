@@ -87,6 +87,10 @@ export interface Parcela {
   // alternativa à data no mesmo campo da UI (Data Pagamento).
   condicaoVencimento?: string | null;
   valor: number;        // valor da parcela em reais — editável (parcela 1)
+  // Pago desta parcela específica (independente do "pago" geral do
+  // orçamento) — usado em Recebíveis para acompanhar recebimentos
+  // parcelados que chegam em datas diferentes.
+  pago?: boolean;
 }
 
 export interface Orcamento {

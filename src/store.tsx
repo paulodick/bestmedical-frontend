@@ -44,6 +44,8 @@ interface Store {
   // usado no banco. Resolve para null se o salvamento falhar.
   salvar: (o: Orcamento) => Promise<Orcamento | null>;
   atualizar: (id: string, patch: Partial<Orcamento>) => void;
+  // Marca/desmarca uma parcela específica como paga (ver api.togglePagoParcela).
+  togglePagoParcela: (orcamentoId: string, parcelaId: string, pago: boolean) => void;
   remover: (id: string) => void;
   carregando: boolean;
 }
@@ -136,6 +138,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         api
           .atualizarStatus(id, patch)
           .catch((e) => console.error("Falha ao atualizar status:", e));
+      },
+
+      togglePagoParcela: (orcamentoId, parcelaId, pago) => {
+        // Atualização otimista local da parcela dentro do orçamento.
+        setOrcamentos((prev) =>
+          prev.map((o) =>
+            o.id === orcamentoId
+              ? {
+                  ...o,
+                  parcelas: o.parcelas.map((p) =>
+                    p.id === parcelaId ? { ...p, pago } : p,
+                  ),
+                }
+              : o,
+          ),
+        );
+        if (!API_ENABLED) return;
+        api
+          .togglePagoParcela(orcamentoId, parcelaId, pago)
+          .catch((e) => console.error("Falha ao atualizar parcela:", e));
       },
 
       remover: (id) => {
