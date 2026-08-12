@@ -11,6 +11,8 @@ import {
   Pencil,
   Trash2,
   CheckCircle2,
+  FolderTree,
+  Table2,
 } from "lucide-react";
 import { useStore } from "../store";
 import { useAuth } from "../auth";
@@ -76,6 +78,11 @@ interface Registro {
   orcamento?: Orcamento;
   proposta?: Proposta;
   recebivel?: Recebivel;
+  // Preenchido no modo "Planilha" quando esta linha representa uma parcela
+  // específica de um orçamento parcelado (ex.: "2/3"), em vez do documento
+  // inteiro. Nesse caso as Ações ficam ocultas (a ação é sobre o documento
+  // todo, não sobre uma parcela isolada).
+  parcelaLabel?: string;
 }
 
 // Status financeiros disponíveis no filtro (checkboxes).
@@ -131,6 +138,14 @@ export function ControleFinanceiro({
   );
   const [recSalvando, setRecSalvando] = useState(false);
   const [recExcluirId, setRecExcluirId] = useState<string | null>(null);
+
+  // Layout da tabela: "pastas" (padrão — parcelas aninhadas sob o
+  // orçamento) ou "planilha" (achatado — cada parcela vira sua própria
+  // linha, e as colunas ficam clicáveis para ordenar por qualquer uma,
+  // inclusive Data Pagamento por parcela individual).
+  const [layoutModo, setLayoutModo] = useState<"pastas" | "planilha">(
+    "pastas",
+  );
 
   // Filtros
   const [busca, setBusca] = useState("");
@@ -205,7 +220,9 @@ export function ControleFinanceiro({
     patch: Record<string, boolean | string | null>,
   ) => {
     if (r.tipoRegistro === "orcamento") {
-      atualizar(r.id, patch as Partial<Orcamento>);
+      // No modo Planilha, r.id pode ser um id sintético de parcela
+      // (ex.: "abc-parcela-xyz") — usa sempre o id real do orçamento.
+      atualizar(r.orcamento?.id ?? r.id, patch as Partial<Orcamento>);
       return;
     }
     // Recebível avulso: atualiza otimista e persiste via API.
@@ -404,6 +421,40 @@ export function ControleFinanceiro({
     return [...dosOrc, ...dasProp, ...dosRec];
   }, [orcamentos, propostas, recebiveis]);
 
+  // Modo "Planilha": achata cada orçamento parcelado em uma linha por
+  // parcela (valor e data/condição próprios), mantendo os demais registros
+  // (proposta, recebível avulso, orçamento sem parcelamento) como estão.
+  // Isso permite ordenar por Data Pagamento e ver todas as parcelas de
+  // todos os orçamentos intercaladas pela data real de cada uma.
+  const registrosPlanilha = useMemo<Registro[]>(() => {
+    const out: Registro[] = [];
+    for (const r of registros) {
+      const subParcelas =
+        r.tipoRegistro === "orcamento" &&
+        r.orcamento &&
+        r.orcamento.numParcelas > 1 &&
+        r.orcamento.parcelas.length > 1
+          ? r.orcamento.parcelas
+          : [];
+      if (subParcelas.length === 0) {
+        out.push(r);
+        continue;
+      }
+      subParcelas.forEach((p) => {
+        out.push({
+          ...r,
+          id: `${r.id}-parcela-${p.id}`,
+          numero: `${r.numero} · ${p.numero}/${subParcelas.length}`,
+          total: p.valor,
+          dataPagamento: p.data || null,
+          condicaoPagamento: p.condicaoVencimento || null,
+          parcelaLabel: `${p.numero}/${subParcelas.length}`,
+        });
+      });
+    }
+    return out;
+  }, [registros]);
+
   // ===== Auto-atraso: marca Atrasado quando a data venceu e não foi pago =====
   // Roda quando os registros mudam. Persiste apenas o que precisa mudar.
   useEffect(() => {
@@ -423,7 +474,8 @@ export function ControleFinanceiro({
 
   // ===== Lista filtrada =====
   const filtrados = useMemo(() => {
-    return registros
+    const base = layoutModo === "planilha" ? registrosPlanilha : registros;
+    return base
       .filter((r) => {
         // Cancelados só aparecem se marcados no filtro.
         if (r.cancelado && !statusSelecionados.includes("cancelado")) {
@@ -483,7 +535,7 @@ export function ControleFinanceiro({
         if (cmp === 0) cmp = b.numero.localeCompare(a.numero);
         return sortDir === "asc" ? cmp : -cmp;
       });
-  }, [registros, busca, fEmpresa, statusSelecionados, sortCampo, sortDir]);
+  }, [registros, registrosPlanilha, layoutModo, busca, fEmpresa, statusSelecionados, sortCampo, sortDir]);
 
   const temFiltro = !!(busca || fEmpresa || statusSelecionados.length);
 
@@ -552,6 +604,29 @@ export function ControleFinanceiro({
             onClick={() => setResumoAberto(true)}
           >
             Resumo
+          </Button>
+          {/* Alterna entre "Pastas" (parcelas aninhadas sob o orçamento) e
+              "Planilha" (achatado — cada parcela é linha própria, e as
+              colunas ficam clicáveis para ordenar por qualquer uma). */}
+          <Button
+            variant="secondary"
+            icon={
+              layoutModo === "pastas" ? (
+                <Table2 size={16} />
+              ) : (
+                <FolderTree size={16} />
+              )
+            }
+            onClick={() =>
+              setLayoutModo((m) => (m === "pastas" ? "planilha" : "pastas"))
+            }
+            title={
+              layoutModo === "pastas"
+                ? "Mudar para visão Planilha (cada parcela em sua própria linha, ordenável)"
+                : "Mudar para visão Pastas (parcelas agrupadas sob o orçamento)"
+            }
+          >
+            {layoutModo === "pastas" ? "Planilha" : "Pastas"}
           </Button>
         </div>
       </div>
@@ -768,11 +843,14 @@ export function ControleFinanceiro({
                       ? () => onEdit(r.orcamento as Orcamento)
                       : undefined;
 
-                // Parcelamento (só orçamentos): quando o orçamento foi
-                // dividido em 2+ parcelas na tela Novo Orçamento, mostra
-                // uma sub-linha por parcela logo abaixo, com o valor e a
-                // data/condição de cada uma.
+                // Parcelamento (só orçamentos, modo "Pastas"): quando o
+                // orçamento foi dividido em 2+ parcelas, mostra uma
+                // sub-linha por parcela logo abaixo, com valor e data de
+                // cada uma. No modo "Planilha" cada parcela já chega aqui
+                // como sua própria linha (registrosPlanilha), então não
+                // aninha de novo.
                 const subParcelas =
+                  layoutModo === "pastas" &&
                   r.tipoRegistro === "orcamento" &&
                   r.orcamento &&
                   r.orcamento.numParcelas > 1 &&
@@ -853,7 +931,7 @@ export function ControleFinanceiro({
                       ) : (
                         <button
                           type="button"
-                          disabled={!podeEditar}
+                          disabled={!podeEditar || !!r.parcelaLabel}
                           onClick={() => {
                             setEditId(r.id);
                             setRascunhoCondPag(
@@ -864,9 +942,11 @@ export function ControleFinanceiro({
                             );
                           }}
                           title={
-                            podeEditar
-                              ? "Definir data prevista (ou condição de pagamento, em texto livre)"
-                              : undefined
+                            r.parcelaLabel
+                              ? "Edite a data desta parcela na tela Novo Orçamento (Condições de Pagamento)"
+                              : podeEditar
+                                ? "Definir data prevista (ou condição de pagamento, em texto livre)"
+                                : undefined
                           }
                           className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] transition ${
                             r.dataPagamento || r.condicaoPagamento
@@ -874,7 +954,7 @@ export function ControleFinanceiro({
                                 ? "font-semibold text-rose-600"
                                 : "text-slate-700"
                               : "text-slate-400"
-                          } ${podeEditar ? "hover:bg-slate-100" : "cursor-default"}`}
+                          } ${podeEditar && !r.parcelaLabel ? "hover:bg-slate-100" : "cursor-default"}`}
                         >
                           <Calendar size={14} className="shrink-0" />
                           {r.dataPagamento
@@ -909,39 +989,46 @@ export function ControleFinanceiro({
                         />
                       </div>
                     </td>
-                    {/* Ações: registrar pagamento (todos) + editar/excluir (avulsos) */}
+                    {/* Ações: registrar pagamento (todos) + editar/excluir (avulsos).
+                        No modo Planilha, cada parcela vira sua própria linha
+                        mas a ação é sobre o documento inteiro — mostra só na
+                        primeira parcela (1/n) para não duplicar o botão. */}
                     <td className="px-3 py-2.5">
                       <div className="flex items-center justify-center gap-1">
-                        {podeEditar && !r.pago && !cancelado && (
-                          <button
-                            type="button"
-                            onClick={() => registrarPagamento(r)}
-                            title="Registrar pagamento"
-                            className="rounded-md p-1.5 text-emerald-600 transition hover:bg-emerald-50"
-                          >
-                            <CheckCircle2 size={16} />
-                          </button>
-                        )}
-                        {podeEditar && r.tipoRegistro === "recebivel" && (
+                        {(!r.parcelaLabel || r.parcelaLabel.startsWith("1/")) && (
                           <>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                abrirEdicaoRecebivel(r.recebivel as Recebivel)
-                              }
-                              title="Editar recebível"
-                              className="rounded-md p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                            >
-                              <Pencil size={16} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setRecExcluirId(r.id)}
-                              title="Excluir recebível"
-                              className="rounded-md p-1.5 text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                            {podeEditar && !r.pago && !cancelado && (
+                              <button
+                                type="button"
+                                onClick={() => registrarPagamento(r)}
+                                title="Registrar pagamento"
+                                className="rounded-md p-1.5 text-emerald-600 transition hover:bg-emerald-50"
+                              >
+                                <CheckCircle2 size={16} />
+                              </button>
+                            )}
+                            {podeEditar && r.tipoRegistro === "recebivel" && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    abrirEdicaoRecebivel(r.recebivel as Recebivel)
+                                  }
+                                  title="Editar recebível"
+                                  className="rounded-md p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                                >
+                                  <Pencil size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setRecExcluirId(r.id)}
+                                  title="Excluir recebível"
+                                  className="rounded-md p-1.5 text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </>
+                            )}
                           </>
                         )}
                       </div>
