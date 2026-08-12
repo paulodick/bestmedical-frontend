@@ -417,6 +417,38 @@ export const api = {
     }),
   removerDespesa: (id: string) =>
     req<{ ok: boolean }>(`/financeiro/despesas/${id}`, { method: "DELETE" }),
+  // Upload do boleto (PDF em base64), mesmo padrão do contrato assinado.
+  enviarBoletoDespesa: (id: string, arquivoBase64: string, nome: string) =>
+    req<any>(`/financeiro/despesas/${id}/boleto`, {
+      method: "POST",
+      body: JSON.stringify({ arquivoBase64, nome }),
+    }),
+  // Abre o PDF do boleto anexado numa nova aba.
+  abrirBoletoDespesa: async (id: string) => {
+    const res = await fetch(`${BASE}/financeiro/despesas/${id}/boleto`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      let msg = `Erro ${res.status} ao abrir o boleto`;
+      try {
+        const body = await res.json();
+        msg = body?.message ? String(body.message) : msg;
+      } catch {
+        /* corpo não-JSON */
+      }
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    if (!win) {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `boleto-${id}.pdf`;
+      a.click();
+    }
+  },
   // Resumo consolidado (KPIs + fluxo de caixa mensal + despesas por categoria).
   resumoFinanceiro: () =>
     req<{
