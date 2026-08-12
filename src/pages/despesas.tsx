@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, Search, X, Wallet } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Plus, Pencil, Trash2, Search, X, Wallet, Upload, FileText } from "lucide-react";
 import { useAuth } from "../auth";
 import { Modal } from "../components/Modal";
 import { Button, Input, Select, Textarea, Block } from "../components/ui";
@@ -7,6 +7,8 @@ import { formatBRL, formatDataBR, hojeISO } from "../lib/format";
 import { api, API_ENABLED } from "../lib/api";
 
 // ===== Despesa (contas a pagar / pagas) =====
+type Prioridade = "preto" | "vermelho" | "amarelo" | "verde";
+
 interface Despesa {
   id: string;
   data: string;
@@ -14,10 +16,33 @@ interface Despesa {
   categoria: string | null;
   descricao: string | null;
   valor: number;
+  valorPago: number;
+  saldoDevedor: number;
   pago: boolean;
   dataPagamento: string | null;
   projeto: string | null;
   observacoes: string | null;
+  prioridade: Prioridade | null;
+  boletoNome: string | null;
+  boletoEm: string | null;
+}
+
+// Cores da coluna Prioridade — só a cor é exibida, sem texto na célula.
+// Ordem de importância (para ordenação): preto > vermelho > amarelo > verde > sem prioridade.
+const PRIORIDADES: { valor: Prioridade; cor: string; label: string }[] = [
+  { valor: "preto", cor: "#111827", label: "Urgente (preto)" },
+  { valor: "vermelho", cor: "#ef4444", label: "Vermelho" },
+  { valor: "amarelo", cor: "#f59e0b", label: "Amarelo" },
+  { valor: "verde", cor: "#22c55e", label: "Verde" },
+];
+const ordemPrioridade: Record<string, number> = {
+  preto: 0,
+  vermelho: 1,
+  amarelo: 2,
+  verde: 3,
+};
+function corPrioridade(p: Prioridade | null): string {
+  return PRIORIDADES.find((x) => x.valor === p)?.cor || "transparent";
 }
 
 // Categorias sugeridas (o usuário também pode digitar livremente).
@@ -41,10 +66,15 @@ function despesaVazia(): Omit<Despesa, "id"> {
     categoria: "",
     descricao: "",
     valor: 0,
+    valorPago: 0,
+    saldoDevedor: 0,
     pago: false,
     dataPagamento: null,
     projeto: "",
     observacoes: "",
+    prioridade: null,
+    boletoNome: null,
+    boletoEm: null,
   };
 }
 
@@ -65,6 +95,72 @@ export function Despesas() {
   // Modal de confirmação de exclusão.
   const [excluirId, setExcluirId] = useState<string | null>(null);
 
+  // Upload de boleto — mesmo padrão do contrato assinado em Controle.
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const uploadDespesaId = useRef<string | null>(null);
+  const [uploadCarregando, setUploadCarregando] = useState<string | null>(null);
+  const [uploadErro, setUploadErro] = useState<string | null>(null);
+
+  const iniciarUploadBoleto = (id: string) => {
+    uploadDespesaId.current = id;
+    uploadInputRef.current?.click();
+  };
+
+  const onArquivoSelecionado = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const arquivo = e.target.files?.[0];
+    const id = uploadDespesaId.current;
+    e.target.value = "";
+    if (!arquivo || !id) return;
+
+    setUploadErro(null);
+    setUploadCarregando(id);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Falha ao ler o arquivo."));
+        reader.readAsDataURL(arquivo);
+      });
+      const atualizada = await api.enviarBoletoDespesa(id, base64, arquivo.name);
+      setDespesas((prev) =>
+        prev.map((d) => (d.id === id ? (atualizada as Despesa) : d)),
+      );
+    } catch (err) {
+      setUploadErro(
+        err instanceof Error ? err.message : "Não foi possível enviar o boleto.",
+      );
+    } finally {
+      setUploadCarregando(null);
+      uploadDespesaId.current = null;
+    }
+  };
+
+  const abrirBoleto = async (id: string) => {
+    setUploadErro(null);
+    try {
+      await api.abrirBoletoDespesa(id);
+    } catch (e) {
+      setUploadErro(
+        e instanceof Error ? e.message : "Não foi possível abrir o boleto.",
+      );
+    }
+  };
+
+  const alterarPrioridade = async (d: Despesa, prioridade: Prioridade | "") => {
+    const valor = prioridade || null;
+    setDespesas((prev) =>
+      prev.map((x) => (x.id === d.id ? { ...x, prioridade: valor } : x)),
+    );
+    try {
+      if (API_ENABLED) await api.atualizarDespesa(d.id, { prioridade: valor });
+    } catch (e) {
+      alert("Erro ao atualizar prioridade: " + (e as Error).message);
+      carregar();
+    }
+  };
+
   const carregar = () => {
     if (!API_ENABLED) return;
     setCarregando(true);
@@ -79,12 +175,27 @@ export function Despesas() {
 
   const filtradas = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    if (!q) return despesas;
-    return despesas.filter((d) =>
-      [d.fornecedor, d.categoria, d.descricao, d.projeto]
-        .filter(Boolean)
-        .some((v) => (v as string).toLowerCase().includes(q)),
-    );
+    const base = !q
+      ? despesas
+      : despesas.filter((d) =>
+          [d.fornecedor, d.categoria, d.descricao, d.projeto]
+            .filter(Boolean)
+            .some((v) => (v as string).toLowerCase().includes(q)),
+        );
+
+    // Ordem fixa: 1) cor de prioridade (preto > vermelho > amarelo > verde >
+    // sem prioridade), 2) dentro da mesma cor, por data, 3) dentro da mesma
+    // data, alfabética pelo fornecedor (beneficiário do pagamento).
+    const arr = [...base];
+    arr.sort((a, b) => {
+      const pa = a.prioridade ? ordemPrioridade[a.prioridade] : 99;
+      const pb = b.prioridade ? ordemPrioridade[b.prioridade] : 99;
+      if (pa !== pb) return pa - pb;
+      const cmpData = a.data.localeCompare(b.data);
+      if (cmpData !== 0) return cmpData;
+      return a.fornecedor.localeCompare(b.fornecedor, "pt-BR");
+    });
+    return arr;
   }, [despesas, busca]);
 
   const totais = useMemo(() => {
@@ -107,10 +218,15 @@ export function Despesas() {
       categoria: d.categoria || "",
       descricao: d.descricao || "",
       valor: d.valor,
+      valorPago: d.valorPago,
+      saldoDevedor: d.saldoDevedor,
       pago: d.pago,
       dataPagamento: d.dataPagamento,
       projeto: d.projeto || "",
       observacoes: d.observacoes || "",
+      prioridade: d.prioridade,
+      boletoNome: d.boletoNome,
+      boletoEm: d.boletoEm,
     });
     setModalAberto(true);
   };
@@ -128,6 +244,7 @@ export function Despesas() {
       projeto: form.projeto || undefined,
       observacoes: form.observacoes || undefined,
       dataPagamento: form.dataPagamento || undefined,
+      prioridade: form.prioridade || undefined,
     };
     try {
       if (editId) await api.atualizarDespesa(editId, payload);
@@ -210,12 +327,16 @@ export function Despesas() {
           <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-text-muted">
+                <th className="px-2 py-2 text-center">Prioridade</th>
                 <th className="px-2 py-2">Data</th>
                 <th className="px-2 py-2">Fornecedor</th>
                 <th className="px-2 py-2">Categoria</th>
                 <th className="px-2 py-2">Projeto</th>
                 <th className="px-2 py-2 text-right">Valor</th>
+                <th className="px-2 py-2 text-right">Valor pago</th>
+                <th className="px-2 py-2 text-right">Saldo devedor</th>
                 <th className="px-2 py-2 text-center">Situação</th>
+                <th className="px-2 py-2 text-center">Boleto</th>
                 {podeEditar && <th className="px-2 py-2 text-center">Ações</th>}
               </tr>
             </thead>
@@ -225,6 +346,28 @@ export function Despesas() {
                   key={d.id}
                   className="border-b border-border/60 hover:bg-surface-offset/40"
                 >
+                  <td className="px-2 py-2">
+                    <select
+                      value={d.prioridade || ""}
+                      onChange={(e) =>
+                        alterarPrioridade(d, e.target.value as Prioridade | "")
+                      }
+                      disabled={!podeEditar}
+                      title={
+                        PRIORIDADES.find((p) => p.valor === d.prioridade)
+                          ?.label || "Sem prioridade"
+                      }
+                      className="mx-auto block h-6 w-8 cursor-pointer rounded border border-border"
+                      style={{ backgroundColor: corPrioridade(d.prioridade) }}
+                    >
+                      <option value="">Sem prioridade</option>
+                      {PRIORIDADES.map((p) => (
+                        <option key={p.valor} value={p.valor}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
                   <td className="whitespace-nowrap px-2 py-2">
                     {formatDataBR(d.data)}
                   </td>
@@ -241,6 +384,12 @@ export function Despesas() {
                   <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums">
                     {formatBRL(d.valor)}
                   </td>
+                  <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums">
+                    {d.valorPago ? formatBRL(d.valorPago) : "—"}
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums">
+                    {formatBRL(d.saldoDevedor)}
+                  </td>
                   <td className="px-2 py-2 text-center">
                     {d.pago ? (
                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
@@ -250,6 +399,28 @@ export function Despesas() {
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
                         A pagar
                       </span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-2 text-center">
+                    {d.boletoNome ? (
+                      <button
+                        onClick={() => abrirBoleto(d.id)}
+                        title={`Ver boleto (${d.boletoNome})`}
+                        className="rounded p-1.5 text-text-muted hover:bg-surface-offset hover:text-text"
+                      >
+                        <FileText size={16} />
+                      </button>
+                    ) : podeEditar ? (
+                      <button
+                        onClick={() => iniciarUploadBoleto(d.id)}
+                        title="Anexar boleto"
+                        disabled={uploadCarregando === d.id}
+                        className="rounded p-1.5 text-text-muted hover:bg-surface-offset hover:text-text disabled:opacity-50"
+                      >
+                        <Upload size={16} />
+                      </button>
+                    ) : (
+                      "—"
                     )}
                   </td>
                   {podeEditar && (
@@ -275,7 +446,7 @@ export function Despesas() {
               {filtradas.length === 0 && (
                 <tr>
                   <td
-                    colSpan={podeEditar ? 7 : 6}
+                    colSpan={podeEditar ? 10 : 9}
                     className="px-2 py-8 text-center text-text-muted"
                   >
                     {carregando
@@ -287,6 +458,19 @@ export function Despesas() {
             </tbody>
           </table>
         </div>
+        {uploadErro && (
+          <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+            {uploadErro}
+          </p>
+        )}
+        {/* Input de arquivo oculto, compartilhado por todos os botões de upload de boleto. */}
+        <input
+          type="file"
+          accept="application/pdf"
+          className="hidden"
+          ref={uploadInputRef}
+          onChange={onArquivoSelecionado}
+        />
       </Block>
 
       {/* Modal criar/editar */}
@@ -314,7 +498,7 @@ export function Despesas() {
               onChange={(e) => setForm({ ...form, data: e.target.value })}
             />
             <Input
-              label="Valor (R$)"
+              label="Valor a pagar (R$)"
               type="number"
               step="0.01"
               min="0"
@@ -323,6 +507,43 @@ export function Despesas() {
                 setForm({ ...form, valor: Number(e.target.value) || 0 })
               }
             />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Input
+              label="Valor pago (R$)"
+              type="number"
+              step="0.01"
+              min="0"
+              value={form.valorPago || ""}
+              onChange={(e) =>
+                setForm({ ...form, valorPago: Number(e.target.value) || 0 })
+              }
+            />
+            <div>
+              <label className="mb-1 block text-xs font-medium text-text-muted">
+                Saldo devedor (R$)
+              </label>
+              <div className="flex h-[38px] items-center rounded-md border border-border bg-surface-offset/40 px-3 text-sm text-text">
+                {formatBRL(Math.max(0, (form.valor || 0) - (form.valorPago || 0)))}
+              </div>
+            </div>
+            <Select
+              label="Prioridade"
+              value={form.prioridade || ""}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  prioridade: (e.target.value || null) as Prioridade | null,
+                })
+              }
+            >
+              <option value="">Sem prioridade</option>
+              {PRIORIDADES.map((p) => (
+                <option key={p.valor} value={p.valor}>
+                  {p.label}
+                </option>
+              ))}
+            </Select>
           </div>
           <Input
             label="Fornecedor"
