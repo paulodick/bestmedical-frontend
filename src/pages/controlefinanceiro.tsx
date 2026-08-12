@@ -83,6 +83,10 @@ interface Registro {
   // inteiro. Nesse caso as Ações ficam ocultas (a ação é sobre o documento
   // todo, não sobre uma parcela isolada).
   parcelaLabel?: string;
+  // Id e status "pago" da parcela específica (quando parcelaLabel está
+  // preenchido) — independente do "pago" geral do orçamento.
+  parcelaId?: string;
+  parcelaPago?: boolean;
 }
 
 // Status financeiros disponíveis no filtro (checkboxes).
@@ -120,7 +124,7 @@ export function ControleFinanceiro({
   onEdit?: (orc: Orcamento) => void;
   onEditProposta?: (prop: Proposta) => void;
 } = {}) {
-  const { orcamentos, atualizar } = useStore();
+  const { orcamentos, atualizar, togglePagoParcela } = useStore();
   const { user } = useAuth();
 
   // Só o admin master (paulodick) pode editar campos direto na tabela.
@@ -449,6 +453,8 @@ export function ControleFinanceiro({
           dataPagamento: p.data || null,
           condicaoPagamento: p.condicaoVencimento || null,
           parcelaLabel: `${p.numero}/${subParcelas.length}`,
+          parcelaId: p.id,
+          parcelaPago: !!p.pago,
         });
       });
     }
@@ -964,29 +970,44 @@ export function ControleFinanceiro({
                       )}
                     </td>
                     {/* Botões de status financeiro — mesmo padrão (StatusPill)
-                        usado na página Controle. */}
+                        usado na página Controle. Numa linha de parcela
+                        (Planilha), o Pago é da parcela específica — as
+                        outras (Atrasado/Cancelado, que só existem no nível
+                        do documento) só aparecem na primeira parcela. */}
                     <td className="px-3 py-2.5">
                       <div className="flex flex-wrap gap-1.5">
                         <StatusPill
-                          on={r.pago}
+                          on={r.parcelaLabel ? !!r.parcelaPago : r.pago}
                           label="Pago"
-                          onClick={() => togglePago(r)}
+                          onClick={() =>
+                            r.parcelaLabel && r.parcelaId
+                              ? togglePagoParcela(
+                                  (r.orcamento as Orcamento).id,
+                                  r.parcelaId,
+                                  !r.parcelaPago,
+                                )
+                              : togglePago(r)
+                          }
                           interactive
                         />
-                        <StatusPill
-                          on={r.atrasado}
-                          label="Atrasado"
-                          onClick={() => toggleAtrasado(r)}
-                          interactive
-                          tom="danger"
-                        />
-                        <StatusPill
-                          on={r.cancelado}
-                          label="Cancelado"
-                          onClick={() => toggleCancelado(r)}
-                          interactive
-                          tom="danger"
-                        />
+                        {(!r.parcelaLabel || r.parcelaLabel.startsWith("1/")) && (
+                          <>
+                            <StatusPill
+                              on={r.atrasado}
+                              label="Atrasado"
+                              onClick={() => toggleAtrasado(r)}
+                              interactive
+                              tom="danger"
+                            />
+                            <StatusPill
+                              on={r.cancelado}
+                              label="Cancelado"
+                              onClick={() => toggleCancelado(r)}
+                              interactive
+                              tom="danger"
+                            />
+                          </>
+                        )}
                       </div>
                     </td>
                     {/* Ações: registrar pagamento (todos) + editar/excluir (avulsos).
@@ -1056,7 +1077,20 @@ export function ControleFinanceiro({
                       <td className="px-3 py-1.5 text-[13px] text-slate-600">
                         {formatCondicaoPagamentoInput(p.data, p.condicaoVencimento) || "—"}
                       </td>
-                      <td className="px-3 py-1.5" />
+                      <td className="px-3 py-1.5">
+                        <StatusPill
+                          on={!!p.pago}
+                          label="Pago"
+                          onClick={() =>
+                            togglePagoParcela(
+                              (r.orcamento as Orcamento).id,
+                              p.id,
+                              !p.pago,
+                            )
+                          }
+                          interactive
+                        />
+                      </td>
                       <td className="px-3 py-1.5" />
                     </tr>
                   ))}

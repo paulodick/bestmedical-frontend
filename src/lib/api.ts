@@ -132,6 +132,13 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(patch),
     }),
+  // Marca/desmarca uma parcela específica como paga (independente do
+  // status "pago" do orçamento inteiro) — usado em Recebíveis (Planilha).
+  togglePagoParcela: (orcamentoId: string, parcelaId: string, pago: boolean) =>
+    req<any>(`/orcamentos/${orcamentoId}/parcelas/${parcelaId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ pago }),
+    }),
   enviarOrcamento: (id: string, envio?: EnvioComSolicitantes) =>
     req<{ ok: boolean; mensagem: string; orcamento?: any }>(
       `/orcamentos/${id}/enviar`,
