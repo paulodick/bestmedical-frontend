@@ -463,6 +463,20 @@ export const api = {
       fluxo: { mes: string; entrada: number; saida: number; saldo: number }[];
       despesasPorCategoria: { categoria: string; valor: number }[];
     }>("/financeiro/resumo"),
+  // Lista plana de lançamentos individuais (entradas e saídas já
+  // realizadas), para a página Fluxo de Caixa em formato de planilha.
+  listarFluxoCaixa: () =>
+    req<
+      {
+        id: string;
+        data: string;
+        tipo: "entrada" | "saida";
+        origem: string;
+        descricao: string;
+        categoria: string;
+        valor: number;
+      }[]
+    >("/financeiro/fluxo-caixa"),
 
   // ===== Recebíveis avulsos (manuais) =====
   listarRecebiveis: (query = "") =>
