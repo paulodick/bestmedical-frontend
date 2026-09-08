@@ -522,8 +522,10 @@ export const api = {
   // Resumo consolidado (KPIs + fluxo de caixa mensal + despesas por
   // categoria + contas a pagar/receber + inadimplência + atividade recente).
   resumoFinanceiro: () => req<ResumoFinanceiro>("/financeiro/resumo"),
-  // Lista plana de lançamentos individuais (entradas e saídas já
-  // realizadas), para a página Fluxo de Caixa em formato de planilha.
+  // Lista plana de lançamentos individuais (realizados e previstos), para a
+  // página Fluxo de Caixa em formato de planilha. `data` é a data de
+  // pagamento estimada/prevista; `previsto: true` quando ainda não foi
+  // recebido/pago.
   listarFluxoCaixa: () =>
     req<
       {
@@ -534,6 +536,7 @@ export const api = {
         descricao: string;
         categoria: string;
         valor: number;
+        previsto?: boolean;
       }[]
     >("/financeiro/fluxo-caixa"),
 
@@ -633,6 +636,7 @@ export const api = {
         descricao: string;
         categoria: string;
         valor: number;
+        previsto?: boolean;
       }[]
     >("/financeiro/pessoal/fluxo-caixa"),
 

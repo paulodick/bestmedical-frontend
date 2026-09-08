@@ -14,12 +14,14 @@ import { api, API_ENABLED } from "../lib/api";
 
 interface Lancamento {
   id: string;
-  data: string;
+  data: string; // yyyy-mm-dd — data de pagamento estimada/prevista (mesma da página Recebíveis Pessoais)
   tipo: "entrada" | "saida";
   origem: string;
   descricao: string;
   categoria: string;
   valor: number;
+  // true = ainda não foi recebido/pago (previsão); ausente/false = já realizado.
+  previsto?: boolean;
 }
 
 type Granularidade = "semana" | "mes" | "ano";
@@ -181,7 +183,13 @@ export function FluxoCaixaPessoal() {
     const saida = filtrados
       .filter((l) => l.tipo === "saida")
       .reduce((s, l) => s + l.valor, 0);
-    return { entrada, saida, saldo: entrada - saida };
+    const entradaPrevista = filtrados
+      .filter((l) => l.tipo === "entrada" && l.previsto)
+      .reduce((s, l) => s + l.valor, 0);
+    const saidaPrevista = filtrados
+      .filter((l) => l.tipo === "saida" && l.previsto)
+      .reduce((s, l) => s + l.valor, 0);
+    return { entrada, saida, saldo: entrada - saida, entradaPrevista, saidaPrevista };
   }, [filtrados]);
 
   const cabecalho = (campo: CampoOrdenacao, label: string, alinhamento = "text-left") => (
@@ -208,7 +216,9 @@ export function FluxoCaixaPessoal() {
       <div>
         <h1 className="text-2xl font-semibold text-text">Fluxo de Caixa Pessoal</h1>
         <p className="text-sm text-text-muted">
-          Entradas e saídas pessoais já realizadas — filtre por semana, mês ou ano.
+          Entradas e saídas pessoais realizadas e previstas — filtre por
+          semana, mês ou ano. Itens ainda não recebidos/pagos aparecem na
+          data de pagamento estimada, marcados como "Previsto".
         </p>
       </div>
 
@@ -218,12 +228,22 @@ export function FluxoCaixaPessoal() {
           <div className="mt-1 text-xl font-semibold text-emerald-600 dark:text-emerald-400">
             {formatBRL(totais.entrada)}
           </div>
+          {totais.entradaPrevista > 0 && (
+            <div className="mt-0.5 text-xs text-text-faint">
+              dos quais {formatBRL(totais.entradaPrevista)} previsto
+            </div>
+          )}
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-xs uppercase tracking-wide text-text-muted">Saídas</div>
           <div className="mt-1 text-xl font-semibold text-red-600 dark:text-red-400">
             {formatBRL(totais.saida)}
           </div>
+          {totais.saidaPrevista > 0 && (
+            <div className="mt-0.5 text-xs text-text-faint">
+              dos quais {formatBRL(totais.saidaPrevista)} previsto
+            </div>
+          )}
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-xs uppercase tracking-wide text-text-muted">Saldo</div>
@@ -328,15 +348,25 @@ export function FluxoCaixaPessoal() {
                 <tr key={l.id} className="border-b border-border/60 hover:bg-surface-offset/40">
                   <td className="whitespace-nowrap px-2 py-2">{formatDataBR(l.data)}</td>
                   <td className="px-2 py-2">
-                    {l.tipo === "entrada" ? (
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                        Entrada
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/40 dark:text-red-300">
-                        Saída
-                      </span>
-                    )}
+                    <div className="flex flex-wrap items-center gap-1">
+                      {l.tipo === "entrada" ? (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                          Entrada
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/40 dark:text-red-300">
+                          Saída
+                        </span>
+                      )}
+                      {l.previsto && (
+                        <span
+                          title="Ainda não recebido/pago — data de pagamento estimada"
+                          className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                        >
+                          Previsto
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-2 py-2 font-medium text-text">{l.origem}</td>
                   <td className="px-2 py-2 text-text-muted">{l.descricao}</td>
