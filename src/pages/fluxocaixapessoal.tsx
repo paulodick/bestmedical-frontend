@@ -14,7 +14,7 @@ import { api, API_ENABLED } from "../lib/api";
 
 interface Lancamento {
   id: string;
-  data: string; // yyyy-mm-dd
+  data: string;
   tipo: "entrada" | "saida";
   origem: string;
   descricao: string;
@@ -25,7 +25,6 @@ interface Lancamento {
 type Granularidade = "semana" | "mes" | "ano";
 type CampoOrdenacao = "data" | "tipo" | "origem" | "categoria" | "valor";
 
-// ===== Utilidades de data (yyyy-mm-dd, sem depender de fuso do navegador) =====
 function hojeLocalISO(): string {
   const d = new Date();
   const off = d.getTimezoneOffset();
@@ -45,17 +44,14 @@ function paraISO(d: Date): string {
   return `${y}-${m}-${dd}`;
 }
 
-// Início (segunda-feira) da semana que contém a data.
 function inicioSemana(d: Date): Date {
-  const dia = d.getDay(); // 0 = domingo
+  const dia = d.getDay();
   const deslocamento = dia === 0 ? -6 : 1 - dia;
   const seg = new Date(d);
   seg.setDate(d.getDate() + deslocamento);
   return seg;
 }
 
-// Calcula o intervalo [inicio, fim] (yyyy-mm-dd, inclusivo) para a
-// granularidade e data de referência selecionadas.
 function calcularIntervalo(
   granularidade: Granularidade,
   referencia: string,
@@ -84,13 +80,11 @@ function calcularIntervalo(
       label: `${nomes[ref.getMonth()]}/${ref.getFullYear()}`,
     };
   }
-  // ano
   const ini = new Date(ref.getFullYear(), 0, 1);
   const fim = new Date(ref.getFullYear(), 11, 31);
   return { inicio: paraISO(ini), fim: paraISO(fim), label: String(ref.getFullYear()) };
 }
 
-// Desloca a referência um passo (±1) na unidade da granularidade atual.
 function deslocarReferencia(
   granularidade: Granularidade,
   referencia: string,
@@ -103,7 +97,7 @@ function deslocarReferencia(
   return paraISO(d);
 }
 
-export function FluxoCaixa() {
+export function FluxoCaixaPessoal() {
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
   const [carregando, setCarregando] = useState(false);
 
@@ -127,7 +121,7 @@ export function FluxoCaixa() {
     if (!API_ENABLED) return;
     setCarregando(true);
     api
-      .listarFluxoCaixa()
+      .listarFluxoCaixaPessoal()
       .then((r) => setLancamentos((r as Lancamento[]) || []))
       .catch(() => setLancamentos([]))
       .finally(() => setCarregando(false));
@@ -201,11 +195,7 @@ export function FluxoCaixa() {
       >
         {label}
         {sortCampo === campo ? (
-          sortDir === "asc" ? (
-            <ChevronUp size={13} />
-          ) : (
-            <ChevronDown size={13} />
-          )
+          sortDir === "asc" ? <ChevronUp size={13} /> : <ChevronDown size={13} />
         ) : (
           <ArrowUpDown size={13} className="opacity-40" />
         )}
@@ -216,35 +206,27 @@ export function FluxoCaixa() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold text-text">Fluxo de Caixa</h1>
+        <h1 className="text-2xl font-semibold text-text">Fluxo de Caixa Pessoal</h1>
         <p className="text-sm text-text-muted">
-          Todas as entradas e saídas já realizadas, lançamento a lançamento —
-          filtre por dia, semana, mês ou ano.
+          Entradas e saídas pessoais já realizadas — filtre por semana, mês ou ano.
         </p>
       </div>
 
-      {/* Cartões de totais do período selecionado */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-xs uppercase tracking-wide text-text-muted">
-            Entradas
-          </div>
+          <div className="text-xs uppercase tracking-wide text-text-muted">Entradas</div>
           <div className="mt-1 text-xl font-semibold text-emerald-600 dark:text-emerald-400">
             {formatBRL(totais.entrada)}
           </div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-xs uppercase tracking-wide text-text-muted">
-            Saídas
-          </div>
+          <div className="text-xs uppercase tracking-wide text-text-muted">Saídas</div>
           <div className="mt-1 text-xl font-semibold text-red-600 dark:text-red-400">
             {formatBRL(totais.saida)}
           </div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-xs uppercase tracking-wide text-text-muted">
-            Saldo
-          </div>
+          <div className="text-xs uppercase tracking-wide text-text-muted">Saldo</div>
           <div
             className={`mt-1 text-xl font-semibold ${
               totais.saldo >= 0
@@ -258,7 +240,6 @@ export function FluxoCaixa() {
       </div>
 
       <Block title="Lançamentos" icon={<TrendingUp size={18} />}>
-        {/* Navegação de período */}
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1 rounded-md border border-border p-1">
             {(
@@ -344,13 +325,8 @@ export function FluxoCaixa() {
             </thead>
             <tbody>
               {filtrados.map((l) => (
-                <tr
-                  key={l.id}
-                  className="border-b border-border/60 hover:bg-surface-offset/40"
-                >
-                  <td className="whitespace-nowrap px-2 py-2">
-                    {formatDataBR(l.data)}
-                  </td>
+                <tr key={l.id} className="border-b border-border/60 hover:bg-surface-offset/40">
+                  <td className="whitespace-nowrap px-2 py-2">{formatDataBR(l.data)}</td>
                   <td className="px-2 py-2">
                     {l.tipo === "entrada" ? (
                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
@@ -380,9 +356,7 @@ export function FluxoCaixa() {
               {filtrados.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-2 py-8 text-center text-text-muted">
-                    {carregando
-                      ? "Carregando..."
-                      : "Nenhum lançamento no período selecionado."}
+                    {carregando ? "Carregando..." : "Nenhum lançamento no período selecionado."}
                   </td>
                 </tr>
               )}

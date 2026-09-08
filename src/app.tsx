@@ -7,7 +7,9 @@ import { ControleFinanceiro } from "./pages/controlefinanceiro";
 import { Despesas } from "./pages/despesas";
 import { FluxoCaixa } from "./pages/fluxocaixa";
 import { DashboardFinanceiro } from "./pages/dashboardfinanceiro";
-import { ControleFinanceiroPessoal } from "./pages/controlefinanceiropessoal";
+import { DespesasPessoal } from "./pages/despesaspessoal";
+import { RecebiveisPessoal } from "./pages/recebiveispessoal";
+import { FluxoCaixaPessoal } from "./pages/fluxocaixapessoal";
 import { DashboardFinanceiroPessoal } from "./pages/dashboardfinanceiropessoal";
 import { Crm } from "./pages/crm";
 import { OrdemServicoPage } from "./pages/ordemservico";
@@ -26,7 +28,9 @@ type Page =
   | "despesas"
   | "fluxo"
   | "dashboard-fin"
-  | "pessoal"
+  | "despesas-pessoal"
+  | "recebiveis-pessoal"
+  | "fluxo-pessoal"
   | "dashboard-pessoal"
   | "crm"
   | "os"
@@ -42,7 +46,12 @@ const PAGINAS_FINANCEIRO: Page[] = [
 ];
 
 // Páginas do submenu "Controle Financeiro Pessoal" (exclusivo paulodick).
-const PAGINAS_PESSOAL: Page[] = ["pessoal", "dashboard-pessoal"];
+const PAGINAS_PESSOAL: Page[] = [
+  "despesas-pessoal",
+  "recebiveis-pessoal",
+  "fluxo-pessoal",
+  "dashboard-pessoal",
+];
 
 function Logo() {
   return (
@@ -321,11 +330,25 @@ function AppShell() {
                 {pessoalAberto && (
                   <div className="mt-1 flex flex-col gap-0.5 border-l border-white/10 pl-3">
                     <SubNavButton
-                      active={page === "pessoal"}
-                      onClick={() => setPage("pessoal")}
+                      active={page === "recebiveis-pessoal"}
+                      onClick={() => setPage("recebiveis-pessoal")}
+                      icon={<Wallet size={16} />}
+                    >
+                      Recebíveis
+                    </SubNavButton>
+                    <SubNavButton
+                      active={page === "despesas-pessoal"}
+                      onClick={() => setPage("despesas-pessoal")}
                       icon={<Coins size={16} />}
                     >
-                      Lançamentos
+                      Despesas
+                    </SubNavButton>
+                    <SubNavButton
+                      active={page === "fluxo-pessoal"}
+                      onClick={() => setPage("fluxo-pessoal")}
+                      icon={<TrendingUp size={16} />}
+                    >
+                      Fluxo de Caixa
                     </SubNavButton>
                     <SubNavButton
                       active={page === "dashboard-pessoal"}
@@ -513,8 +536,12 @@ function AppShell() {
               <FluxoCaixa />
             ) : page === "dashboard-fin" && podeVerFinanceiro ? (
               <DashboardFinanceiro />
-            ) : page === "pessoal" && podeVerCrm ? (
-              <ControleFinanceiroPessoal />
+            ) : page === "despesas-pessoal" && podeVerCrm ? (
+              <DespesasPessoal />
+            ) : page === "recebiveis-pessoal" && podeVerCrm ? (
+              <RecebiveisPessoal />
+            ) : page === "fluxo-pessoal" && podeVerCrm ? (
+              <FluxoCaixaPessoal />
             ) : page === "dashboard-pessoal" && podeVerCrm ? (
               <DashboardFinanceiroPessoal />
             ) : (

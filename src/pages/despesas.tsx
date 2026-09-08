@@ -3,8 +3,9 @@ import { Plus, Pencil, Trash2, Search, X, Wallet, Upload, FileText } from "lucid
 import { useAuth } from "../auth";
 import { Modal } from "../components/Modal";
 import { Button, Input, Select, Textarea, Block } from "../components/ui";
+import { PainelBaixas } from "../components/PainelBaixas";
 import { formatBRL, formatDataBR, hojeISO } from "../lib/format";
-import { api, API_ENABLED } from "../lib/api";
+import { api, API_ENABLED, type Baixa, type NovaBaixa } from "../lib/api";
 
 // ===== Despesa (contas a pagar / pagas) =====
 type Prioridade = "preto" | "vermelho" | "amarelo" | "verde";
@@ -26,6 +27,28 @@ interface Despesa {
   boletoNome: string | null;
   boletoEm: string | null;
 }
+
+type Situacao = "pago" | "parcial" | "atrasado" | "apagar";
+
+function situacaoDespesa(d: Despesa): Situacao {
+  if (d.pago) return "pago";
+  if (d.valorPago > 0) return "parcial";
+  if (d.data < hojeISO()) return "atrasado";
+  return "apagar";
+}
+
+const SITUACAO_LABEL: Record<Situacao, string> = {
+  pago: "Pago",
+  parcial: "Parcial",
+  atrasado: "Atrasado",
+  apagar: "A pagar",
+};
+const SITUACAO_CLASSE: Record<Situacao, string> = {
+  pago: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  parcial: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+  atrasado: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+  apagar: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+};
 
 // Cores da coluna Prioridade — só a cor é exibida, sem texto na célula.
 // Ordem de importância (para ordenação): preto > vermelho > amarelo > verde > sem prioridade.
@@ -80,7 +103,7 @@ function despesaVazia(): Omit<Despesa, "id"> {
 
 export function Despesas() {
   const { user } = useAuth();
-  const podeEditar = (user?.usuario || "").toLowerCase() === "paulodick";
+  const podeEditar = (user?.perfil || "").toLowerCase() === "admin";
 
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [carregando, setCarregando] = useState(false);
@@ -91,6 +114,10 @@ export function Despesas() {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<Omit<Despesa, "id">>(despesaVazia());
   const [salvando, setSalvando] = useState(false);
+
+  // Baixas (pagamento total ou parcial) do registro em edição.
+  const [baixas, setBaixas] = useState<Baixa[]>([]);
+  const [carregandoBaixas, setCarregandoBaixas] = useState(false);
 
   // Modal de confirmação de exclusão.
   const [excluirId, setExcluirId] = useState<string | null>(null);
@@ -200,14 +227,30 @@ export function Despesas() {
 
   const totais = useMemo(() => {
     const total = filtradas.reduce((s, d) => s + d.valor, 0);
-    const pago = filtradas.filter((d) => d.pago).reduce((s, d) => s + d.valor, 0);
-    return { total, pago, pendente: total - pago };
+    const pago = filtradas.reduce(
+      (s, d) => s + (d.pago ? d.valor : d.valorPago),
+      0,
+    );
+    const atrasado = filtradas
+      .filter((d) => situacaoDespesa(d) === "atrasado")
+      .reduce((s, d) => s + d.saldoDevedor, 0);
+    return { total, pago, pendente: total - pago, atrasado };
   }, [filtradas]);
 
   const abrirNova = () => {
     setEditId(null);
     setForm(despesaVazia());
+    setBaixas([]);
     setModalAberto(true);
+  };
+
+  const carregarBaixas = (id: string) => {
+    setCarregandoBaixas(true);
+    api
+      .listarBaixasDespesa(id)
+      .then(setBaixas)
+      .catch(() => setBaixas([]))
+      .finally(() => setCarregandoBaixas(false));
   };
 
   const abrirEdicao = (d: Despesa) => {
@@ -228,6 +271,7 @@ export function Despesas() {
       boletoNome: d.boletoNome,
       boletoEm: d.boletoEm,
     });
+    carregarBaixas(d.id);
     setModalAberto(true);
   };
 
@@ -258,6 +302,33 @@ export function Despesas() {
     }
   };
 
+  const registrarBaixa = async (baixa: NovaBaixa) => {
+    if (!editId) return;
+    const atualizada = await api.registrarBaixaDespesa(editId, baixa);
+    setForm((f) => ({
+      ...f,
+      valorPago: atualizada.valorPago,
+      saldoDevedor: atualizada.saldoDevedor,
+      pago: atualizada.pago,
+      dataPagamento: atualizada.dataPagamento,
+    }));
+    carregarBaixas(editId);
+    carregar();
+  };
+
+  const removerBaixa = async (baixaId: string) => {
+    if (!editId) return;
+    const atualizada = await api.removerBaixaDespesa(editId, baixaId);
+    setForm((f) => ({
+      ...f,
+      valorPago: atualizada.valorPago,
+      saldoDevedor: atualizada.saldoDevedor,
+      pago: atualizada.pago,
+    }));
+    carregarBaixas(editId);
+    carregar();
+  };
+
   const confirmarExclusao = async () => {
     if (!excluirId) return;
     try {
@@ -286,7 +357,7 @@ export function Despesas() {
       </div>
 
       {/* Cartões de totais */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-xs uppercase tracking-wide text-text-muted">
             Total
@@ -309,6 +380,14 @@ export function Despesas() {
           </div>
           <div className="mt-1 text-xl font-semibold text-amber-600 dark:text-amber-400">
             {formatBRL(totais.pendente)}
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-surface p-4">
+          <div className="text-xs uppercase tracking-wide text-text-muted">
+            Atrasado
+          </div>
+          <div className="mt-1 text-xl font-semibold text-red-600 dark:text-red-400">
+            {formatBRL(totais.atrasado)}
           </div>
         </div>
       </div>
@@ -341,12 +420,15 @@ export function Despesas() {
               </tr>
             </thead>
             <tbody>
-              {filtradas.map((d) => (
+              {filtradas.map((d) => {
+                const situacao = situacaoDespesa(d);
+                return (
                 <tr
                   key={d.id}
-                  className="border-b border-border/60 hover:bg-surface-offset/40"
+                  onClick={() => podeEditar && abrirEdicao(d)}
+                  className={`border-b border-border/60 hover:bg-surface-offset/40 ${podeEditar ? "cursor-pointer" : ""}`}
                 >
-                  <td className="px-2 py-2">
+                  <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                     <select
                       value={d.prioridade || ""}
                       onChange={(e) =>
@@ -391,17 +473,13 @@ export function Despesas() {
                     {formatBRL(d.saldoDevedor)}
                   </td>
                   <td className="px-2 py-2 text-center">
-                    {d.pago ? (
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                        Pago
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                        A pagar
-                      </span>
-                    )}
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${SITUACAO_CLASSE[situacao]}`}
+                    >
+                      {SITUACAO_LABEL[situacao]}
+                    </span>
                   </td>
-                  <td className="whitespace-nowrap px-2 py-2 text-center">
+                  <td className="whitespace-nowrap px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                     {d.boletoNome ? (
                       <button
                         onClick={() => abrirBoleto(d.id)}
@@ -424,10 +502,10 @@ export function Despesas() {
                     )}
                   </td>
                   {podeEditar && (
-                    <td className="whitespace-nowrap px-2 py-2 text-center">
+                    <td className="whitespace-nowrap px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => abrirEdicao(d)}
-                        title="Editar"
+                        title="Editar / registrar baixa"
                         className="mr-1 rounded p-1.5 text-text-muted hover:bg-surface-offset hover:text-text"
                       >
                         <Pencil size={16} />
@@ -442,7 +520,8 @@ export function Despesas() {
                     </td>
                   )}
                 </tr>
-              ))}
+                );
+              })}
               {filtradas.length === 0 && (
                 <tr>
                   <td
@@ -509,16 +588,14 @@ export function Despesas() {
             />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Input
-              label="Valor pago (R$)"
-              type="number"
-              step="0.01"
-              min="0"
-              value={form.valorPago || ""}
-              onChange={(e) =>
-                setForm({ ...form, valorPago: Number(e.target.value) || 0 })
-              }
-            />
+            <div>
+              <label className="mb-1 block text-xs font-medium text-text-muted">
+                Valor pago (R$)
+              </label>
+              <div className="flex h-[38px] items-center rounded-md border border-border bg-surface-offset/40 px-3 text-sm text-text">
+                {formatBRL(form.valorPago || 0)}
+              </div>
+            </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-text-muted">
                 Saldo devedor (R$)
@@ -575,42 +652,31 @@ export function Despesas() {
             value={form.descricao || ""}
             onChange={(e) => setForm({ ...form, descricao: e.target.value })}
           />
-          <div className="rounded-md border border-border p-3">
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.pago}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    pago: e.target.checked,
-                    dataPagamento: e.target.checked
-                      ? form.dataPagamento || hojeISO()
-                      : null,
-                  })
-                }
-              />
-              <span className="font-medium text-text">Já foi paga</span>
-            </label>
-            {form.pago && (
-              <div className="mt-3">
-                <Input
-                  label="Data do pagamento"
-                  type="date"
-                  value={form.dataPagamento || ""}
-                  onChange={(e) =>
-                    setForm({ ...form, dataPagamento: e.target.value })
-                  }
-                />
-              </div>
-            )}
-          </div>
           <Textarea
             label="Observações"
             rows={2}
             value={form.observacoes || ""}
             onChange={(e) => setForm({ ...form, observacoes: e.target.value })}
           />
+
+          {editId ? (
+            carregandoBaixas ? (
+              <p className="text-sm text-text-faint">Carregando baixas...</p>
+            ) : (
+              <PainelBaixas
+                baixas={baixas}
+                saldoDevedor={form.saldoDevedor}
+                acaoLabel="Registrar baixa"
+                podeEditar={podeEditar}
+                onRegistrar={registrarBaixa}
+                onRemover={removerBaixa}
+              />
+            )
+          ) : (
+            <p className="rounded-md bg-surface-offset/40 p-3 text-xs text-text-faint">
+              Salve a despesa antes de registrar uma baixa (pagamento total ou parcial).
+            </p>
+          )}
         </div>
       </Modal>
 

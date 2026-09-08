@@ -19,6 +19,7 @@ import { useAuth } from "../auth";
 import type { Orcamento, Proposta } from "../types";
 import { Modal } from "../components/Modal";
 import { Button, Input, Select, Textarea, StatusPill } from "../components/ui";
+import { PainelBaixas } from "../components/PainelBaixas";
 import {
   formatBRL,
   formatDataBR,
@@ -27,7 +28,7 @@ import {
   formatCondicaoPagamentoInput,
 } from "../lib/format";
 import { totalFinal } from "../lib/calc";
-import { api, API_ENABLED } from "../lib/api";
+import { api, API_ENABLED, type Baixa, type NovaBaixa } from "../lib/api";
 
 // ===== Recebível avulso (manual) exposto pela API =====
 interface Recebivel {
@@ -37,6 +38,8 @@ interface Recebivel {
   cnpj: string | null;
   descricao: string | null;
   valor: number;
+  valorPago: number;
+  saldoDevedor: number;
   pago: boolean;
   dataPagamento: string | null;
   // Condição de pagamento (texto livre, ex.: "Antecipado", "30 dias") —
@@ -53,6 +56,8 @@ function recebivelVazio(): Omit<Recebivel, "id"> {
     cnpj: "",
     descricao: "",
     valor: 0,
+    valorPago: 0,
+    saldoDevedor: 0,
     pago: false,
     dataPagamento: null,
     condicaoPagamento: null,
@@ -127,8 +132,9 @@ export function ControleFinanceiro({
   const { orcamentos, atualizar, togglePagoParcela } = useStore();
   const { user } = useAuth();
 
-  // Só o admin master (paulodick) pode editar campos direto na tabela.
-  const podeEditar = (user?.usuario || "").toLowerCase() === "paulodick";
+  // Qualquer usuário com perfil admin pode editar (mesma regra do backend
+  // e do menu "Controle Financeiro" — não é exclusivo do paulodick).
+  const podeEditar = (user?.perfil || "").toLowerCase() === "admin";
 
   const [propostas, setPropostas] = useState<Proposta[]>([]);
   // Recebíveis avulsos (manuais), carregados da API.
@@ -142,6 +148,10 @@ export function ControleFinanceiro({
   );
   const [recSalvando, setRecSalvando] = useState(false);
   const [recExcluirId, setRecExcluirId] = useState<string | null>(null);
+
+  // Baixas (recebimento total ou parcial) do recebível avulso em edição.
+  const [baixasRec, setBaixasRec] = useState<Baixa[]>([]);
+  const [carregandoBaixasRec, setCarregandoBaixasRec] = useState(false);
 
   // Layout da tabela: "pastas" (padrão — parcelas aninhadas sob o
   // orçamento) ou "planilha" (achatado — cada parcela vira sua própria
@@ -335,7 +345,17 @@ export function ControleFinanceiro({
   const abrirNovoRecebivel = () => {
     setRecEditId(null);
     setRecForm(recebivelVazio());
+    setBaixasRec([]);
     setRecModalAberto(true);
+  };
+
+  const carregarBaixasRec = (id: string) => {
+    setCarregandoBaixasRec(true);
+    api
+      .listarBaixasRecebivel(id)
+      .then(setBaixasRec)
+      .catch(() => setBaixasRec([]))
+      .finally(() => setCarregandoBaixasRec(false));
   };
 
   const abrirEdicaoRecebivel = (rec: Recebivel) => {
@@ -346,12 +366,42 @@ export function ControleFinanceiro({
       cnpj: rec.cnpj || "",
       descricao: rec.descricao || "",
       valor: rec.valor,
+      valorPago: rec.valorPago,
+      saldoDevedor: rec.saldoDevedor,
       pago: rec.pago,
       dataPagamento: rec.dataPagamento,
       condicaoPagamento: rec.condicaoPagamento,
       observacoes: rec.observacoes || "",
     });
+    carregarBaixasRec(rec.id);
     setRecModalAberto(true);
+  };
+
+  const registrarBaixaRec = async (baixa: NovaBaixa) => {
+    if (!recEditId) return;
+    const atualizado = await api.registrarBaixaRecebivel(recEditId, baixa);
+    setRecForm((f) => ({
+      ...f,
+      valorPago: atualizado.valorPago,
+      saldoDevedor: atualizado.saldoDevedor,
+      pago: atualizado.pago,
+      dataPagamento: atualizado.dataPagamento,
+    }));
+    carregarBaixasRec(recEditId);
+    recarregarRecebiveis();
+  };
+
+  const removerBaixaRec = async (baixaId: string) => {
+    if (!recEditId) return;
+    const atualizado = await api.removerBaixaRecebivel(recEditId, baixaId);
+    setRecForm((f) => ({
+      ...f,
+      valorPago: atualizado.valorPago,
+      saldoDevedor: atualizado.saldoDevedor,
+      pago: atualizado.pago,
+    }));
+    carregarBaixasRec(recEditId);
+    recarregarRecebiveis();
   };
 
   const salvarRecebivel = async () => {
@@ -1043,6 +1093,13 @@ export function ControleFinanceiro({
                         do documento) só aparecem na primeira parcela. */}
                     <td className="px-3 py-2.5">
                       <div className="flex flex-wrap gap-1.5">
+                        {r.tipoRegistro === "recebivel" &&
+                          !r.pago &&
+                          (r.recebivel?.valorPago ?? 0) > 0 && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
+                              Parcial
+                            </span>
+                          )}
                         <StatusPill
                           on={r.parcelaLabel ? !!r.parcelaPago : r.pago}
                           label="Pago"
@@ -1317,36 +1374,6 @@ export function ControleFinanceiro({
               setRecForm({ ...recForm, descricao: e.target.value })
             }
           />
-          <div className="rounded-md border border-border p-3">
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={recForm.pago}
-                onChange={(e) =>
-                  setRecForm({
-                    ...recForm,
-                    pago: e.target.checked,
-                    dataPagamento: e.target.checked
-                      ? recForm.dataPagamento || hojeISO()
-                      : null,
-                  })
-                }
-              />
-              <span className="font-medium text-text">Já foi recebido</span>
-            </label>
-            {recForm.pago && (
-              <div className="mt-3">
-                <Input
-                  label="Data do recebimento"
-                  type="date"
-                  value={recForm.dataPagamento || ""}
-                  onChange={(e) =>
-                    setRecForm({ ...recForm, dataPagamento: e.target.value })
-                  }
-                />
-              </div>
-            )}
-          </div>
           <Textarea
             label="Observações"
             rows={2}
@@ -1355,6 +1382,25 @@ export function ControleFinanceiro({
               setRecForm({ ...recForm, observacoes: e.target.value })
             }
           />
+
+          {recEditId ? (
+            carregandoBaixasRec ? (
+              <p className="text-sm text-text-faint">Carregando baixas...</p>
+            ) : (
+              <PainelBaixas
+                baixas={baixasRec}
+                saldoDevedor={recForm.saldoDevedor}
+                acaoLabel="Registrar baixa"
+                podeEditar={podeEditar}
+                onRegistrar={registrarBaixaRec}
+                onRemover={removerBaixaRec}
+              />
+            )
+          ) : (
+            <p className="rounded-md bg-surface-offset/40 p-3 text-xs text-text-faint">
+              Salve o recebível antes de registrar uma baixa (recebimento total ou parcial).
+            </p>
+          )}
         </div>
       </Modal>
 
