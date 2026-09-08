@@ -219,7 +219,7 @@ export function FluxoCaixa() {
         <h1 className="text-2xl font-semibold text-text">Fluxo de Caixa</h1>
         <p className="text-sm text-text-muted">
           Todas as entradas e saídas já realizadas, lançamento a lançamento —
-          filtre por dia, semana, mês ou ano.
+          filtre por semana, mês ou ano.
         </p>
       </div>
 

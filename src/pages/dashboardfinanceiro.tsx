@@ -132,7 +132,7 @@ export function DashboardFinanceiro() {
                   return (
                     <div
                       key={s.mes}
-                      className="flex min-w-[34px] flex-1 flex-col items-center justify-end gap-1"
+                      className="flex h-full min-w-[34px] flex-1 flex-col items-center justify-end gap-1"
                       title={`${rotuloMes(s.mes)}: ${formatBRL(s.saldo)}`}
                     >
                       <div
