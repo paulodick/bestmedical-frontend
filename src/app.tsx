@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FilePlus2, LayoutList, Moon, Sun, LogOut, Loader2, Users, FileText, Wallet, ChevronDown, Coins, TrendingUp, LayoutDashboard } from "lucide-react";
+import { FilePlus2, LayoutList, Moon, Sun, LogOut, Loader2, FileText, Wallet, ChevronDown, Coins, TrendingUp, LayoutDashboard } from "lucide-react";
 import { StoreProvider } from "./store";
 import { NovoOrcamento } from "./pages/novoorcamento";
 import { Controle } from "./pages/controle";
@@ -7,7 +7,6 @@ import { ControleFinanceiro } from "./pages/controlefinanceiro";
 import { Despesas } from "./pages/despesas";
 import { FluxoCaixa } from "./pages/fluxocaixa";
 import { DashboardFinanceiro } from "./pages/dashboardfinanceiro";
-import { Crm } from "./pages/crm";
 import { OrdemServicoPage } from "./pages/ordemservico";
 import { PropostaContrato } from "./pages/propostacontrato";
 import { ContratoPage } from "./pages/contrato";
@@ -24,7 +23,6 @@ type Page =
   | "despesas"
   | "fluxo"
   | "dashboard-fin"
-  | "crm"
   | "os"
   | "proposta"
   | "contrato";
@@ -136,9 +134,6 @@ function AppShell() {
   );
   const { logout, user } = useAuth();
 
-  // CRM é exclusivo do login 'paulodick' (admin master).
-  const podeVerCrm =
-    (user?.usuario || "").trim().toLowerCase() === "paulodick";
   // Controle Financeiro (geral) é liberado para qualquer usuário com perfil admin,
   // igual à regra do backend (@Roles('admin') em despesas.controller.ts) — não é
   // exclusivo do paulodick.
@@ -147,14 +142,10 @@ function AppShell() {
 
   // Se o usuário atual não pode ver a página em que está, volta ao Controle.
   useEffect(() => {
-    if (page === "crm" && !podeVerCrm) {
-      setPage("controle");
-      return;
-    }
     if (PAGINAS_FINANCEIRO.includes(page) && !podeVerFinanceiro) {
       setPage("controle");
     }
-  }, [page, podeVerCrm, podeVerFinanceiro]);
+  }, [page, podeVerFinanceiro]);
 
   // Mantém o submenu financeiro aberto quando uma de suas páginas está ativa.
   useEffect(() => {
@@ -280,15 +271,6 @@ function AppShell() {
                 )}
               </div>
             )}
-            {podeVerCrm && (
-              <NavButton
-                active={page === "crm"}
-                onClick={() => setPage("crm")}
-                icon={<Users size={18} />}
-              >
-                CRM
-              </NavButton>
-            )}
           </nav>
 
           <div className="border-t border-white/10 px-3 py-3">
@@ -384,15 +366,6 @@ function AppShell() {
                   </button>
                 </>
               )}
-              {podeVerCrm && (
-                <button
-                  onClick={() => setPage("crm")}
-                  title="CRM"
-                  className={`rounded-md p-2 ${page === "crm" ? "bg-primary text-white" : "text-text-muted"}`}
-                >
-                  <Users size={18} />
-                </button>
-              )}
               <button
                 onClick={toggleTheme}
                 title="Alternar tema"
@@ -436,8 +409,6 @@ function AppShell() {
                   setPage("controle");
                 }}
               />
-            ) : page === "crm" && podeVerCrm ? (
-              <Crm />
             ) : page === "financeiro" && podeVerFinanceiro ? (
               <ControleFinanceiro
                 onEdit={(orc) => {
