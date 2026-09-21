@@ -128,9 +128,8 @@ export interface NovaBaixa {
   observacao?: string;
 }
 
-// Resumo financeiro consolidado (Dashboard) — formato comum ao geral e ao
-// pessoal, com os campos novos de saldo acumulado, contas a pagar/receber,
-// inadimplência e atividade recente.
+// Resumo financeiro consolidado (Dashboard), com saldo acumulado, contas a
+// pagar/receber, inadimplência e atividade recente.
 export interface ResumoFinanceiro {
   kpis: {
     receitaRecebida: number;
@@ -566,81 +565,6 @@ export const api = {
     req<any>(`/financeiro/recebiveis/${id}/baixas/${baixaId}`, {
       method: "DELETE",
     }),
-
-  // ===== Controle Financeiro Pessoal (exclusivo admin master) =====
-  // Despesas pessoais
-  listarDespesasPessoal: (query = "") =>
-    req<ListaResposta<any>>(`/financeiro/pessoal/despesas${query}`),
-  criarDespesaPessoal: (d: any) =>
-    req<any>("/financeiro/pessoal/despesas", {
-      method: "POST",
-      body: JSON.stringify(d),
-    }),
-  atualizarDespesaPessoal: (id: string, d: any) =>
-    req<any>(`/financeiro/pessoal/despesas/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(d),
-    }),
-  removerDespesaPessoal: (id: string) =>
-    req<{ ok: boolean }>(`/financeiro/pessoal/despesas/${id}`, {
-      method: "DELETE",
-    }),
-  listarBaixasDespesaPessoal: (id: string) =>
-    req<Baixa[]>(`/financeiro/pessoal/despesas/${id}/baixas`),
-  registrarBaixaDespesaPessoal: (id: string, baixa: NovaBaixa) =>
-    req<any>(`/financeiro/pessoal/despesas/${id}/baixas`, {
-      method: "POST",
-      body: JSON.stringify(baixa),
-    }),
-  removerBaixaDespesaPessoal: (id: string, baixaId: string) =>
-    req<any>(`/financeiro/pessoal/despesas/${id}/baixas/${baixaId}`, {
-      method: "DELETE",
-    }),
-
-  // Recebíveis pessoais
-  listarRecebiveisPessoal: (query = "") =>
-    req<ListaResposta<any>>(`/financeiro/pessoal/recebiveis${query}`),
-  criarRecebivelPessoal: (d: any) =>
-    req<any>("/financeiro/pessoal/recebiveis", {
-      method: "POST",
-      body: JSON.stringify(d),
-    }),
-  atualizarRecebivelPessoal: (id: string, d: any) =>
-    req<any>(`/financeiro/pessoal/recebiveis/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(d),
-    }),
-  removerRecebivelPessoal: (id: string) =>
-    req<{ ok: boolean }>(`/financeiro/pessoal/recebiveis/${id}`, {
-      method: "DELETE",
-    }),
-  listarBaixasRecebivelPessoal: (id: string) =>
-    req<Baixa[]>(`/financeiro/pessoal/recebiveis/${id}/baixas`),
-  registrarBaixaRecebivelPessoal: (id: string, baixa: NovaBaixa) =>
-    req<any>(`/financeiro/pessoal/recebiveis/${id}/baixas`, {
-      method: "POST",
-      body: JSON.stringify(baixa),
-    }),
-  removerBaixaRecebivelPessoal: (id: string, baixaId: string) =>
-    req<any>(`/financeiro/pessoal/recebiveis/${id}/baixas/${baixaId}`, {
-      method: "DELETE",
-    }),
-
-  listarFluxoCaixaPessoal: () =>
-    req<
-      {
-        id: string;
-        data: string;
-        tipo: "entrada" | "saida";
-        origem: string;
-        descricao: string;
-        categoria: string;
-        valor: number;
-        previsto?: boolean;
-      }[]
-    >("/financeiro/pessoal/fluxo-caixa"),
-
-  resumoPessoal: () => req<ResumoFinanceiro>("/financeiro/pessoal/resumo"),
 
   // CEP
   consultarCep: (cep: string) =>

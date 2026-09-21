@@ -14,9 +14,8 @@ const FORMAS: FormaPagamento[] = [
 ];
 
 // Painel de histórico de baixas (pagamentos/recebimentos totais ou
-// parciais) + formulário para registrar uma nova. Usado em Despesas,
-// Recebíveis e seus equivalentes no Controle Financeiro Pessoal — mesma
-// mecânica dos dois lados (quem paga e quem recebe).
+// parciais) + formulário para registrar uma nova. Usado em Despesas e
+// Recebíveis — mesma mecânica dos dois lados (quem paga e quem recebe).
 export function PainelBaixas({
   baixas,
   saldoDevedor,
