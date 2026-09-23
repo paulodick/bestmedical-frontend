@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FilePlus2, LayoutList, Moon, Sun, LogOut, Loader2, FileText, Wallet, ChevronDown, Coins, TrendingUp, LayoutDashboard } from "lucide-react";
+import { FilePlus2, LayoutList, Moon, Sun, LogOut, Loader2, Users, FileText, Wallet, ChevronDown, Coins, TrendingUp, LayoutDashboard } from "lucide-react";
 import { StoreProvider } from "./store";
 import { NovoOrcamento } from "./pages/novoorcamento";
 import { Controle } from "./pages/controle";
@@ -7,6 +7,7 @@ import { ControleFinanceiro } from "./pages/controlefinanceiro";
 import { Despesas } from "./pages/despesas";
 import { FluxoCaixa } from "./pages/fluxocaixa";
 import { DashboardFinanceiro } from "./pages/dashboardfinanceiro";
+import { Crm } from "./pages/crm";
 import { OrdemServicoPage } from "./pages/ordemservico";
 import { PropostaContrato } from "./pages/propostacontrato";
 import { ContratoPage } from "./pages/contrato";
@@ -23,6 +24,7 @@ type Page =
   | "despesas"
   | "fluxo"
   | "dashboard-fin"
+  | "crm"
   | "os"
   | "proposta"
   | "contrato";
@@ -33,6 +35,7 @@ const PAGINAS_FINANCEIRO: Page[] = [
   "despesas",
   "fluxo",
   "dashboard-fin",
+  "crm",
 ];
 
 function Logo() {
@@ -139,6 +142,10 @@ function AppShell() {
   // exclusivo do paulodick.
   const podeVerFinanceiro =
     (user?.perfil || "").trim().toLowerCase() === "admin";
+  // CRM (agenda de contatos) é exclusivo do login 'paulodick' (admin master),
+  // mesmo estando agora dentro do submenu Controle Financeiro.
+  const podeVerCrm =
+    (user?.usuario || "").trim().toLowerCase() === "paulodick";
 
   // Se o usuário atual não pode ver a página em que está, volta ao Controle.
   useEffect(() => {
@@ -267,6 +274,15 @@ function AppShell() {
                     >
                       Dashboard
                     </SubNavButton>
+                    {podeVerCrm && (
+                      <SubNavButton
+                        active={page === "crm"}
+                        onClick={() => setPage("crm")}
+                        icon={<Users size={16} />}
+                      >
+                        CRM
+                      </SubNavButton>
+                    )}
                   </div>
                 )}
               </div>
@@ -364,6 +380,15 @@ function AppShell() {
                   >
                     <LayoutDashboard size={18} />
                   </button>
+                  {podeVerCrm && (
+                    <button
+                      onClick={() => setPage("crm")}
+                      title="CRM"
+                      className={`rounded-md p-2 ${page === "crm" ? "bg-primary text-white" : "text-text-muted"}`}
+                    >
+                      <Users size={18} />
+                    </button>
+                  )}
                 </>
               )}
               <button
@@ -426,6 +451,8 @@ function AppShell() {
               <FluxoCaixa />
             ) : page === "dashboard-fin" && podeVerFinanceiro ? (
               <DashboardFinanceiro />
+            ) : page === "crm" && podeVerCrm ? (
+              <Crm />
             ) : (
               <Controle
                 onEdit={(orc) => {
